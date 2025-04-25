@@ -5,10 +5,21 @@ def pow(base, exp):
     return base ** exp
 `;
 
+// Parameters
+const base = 7;
+const exponent = 2;
+
 try {
-  const res = await axios.post("http://localhost:3000/run", { code });
+  const res = await axios.post("http://localhost:3000/run", {
+    code,
+    base,
+    exponent,
+  });
   console.log("✅ Python result:", res.data.result);
-  console.log("✅ Argument used:", res.data.argument);
+  console.log("✅ Arguments used:", {
+    base: res.data.base,
+    exponent: res.data.exponent,
+  });
 } catch (err) {
   if (err.response) {
     console.error(

@@ -18,7 +18,6 @@ async function initPyodide() {
 }
 initPyodide();
 
-const base = 7;
 // Endpoint to execute Python code
 app.post("/run", async (req, res) => {
   if (!pyodideReady) {
@@ -26,16 +25,16 @@ app.post("/run", async (req, res) => {
       .status(503)
       .json({ error: "Pyodide is still loading, try again later." });
   }
-  const { code } = req.body; // Get the code from the request body
+  const { code, base, exponent } = req.body; // Get the code from the request body
 
-  if (!code) {
-    return res.status(400).json({ error: "Missing code !" });
+  if (!code || base === undefined || exponent === undefined) {
+    return res.status(400).json({ error: "Missing code or arguments." });
   }
 
   try {
     const pythonCode = `
     ${code}
-result = pow(${base}, 2)  
+result = pow(${base}, ${exponent})  
 result
     `;
 
@@ -46,8 +45,9 @@ result
 
     // Send the result back to the client
     res.json({
-      result: result,
-      argument: base,
+      result,
+      base,
+      exponent,
     });
   } catch (err) {
     res
