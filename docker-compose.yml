@@ -1,0 +1,37 @@
+services:
+  minio:
+    image: quay.io/minio/minio
+    container_name: minio
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+    volumes:
+      - minio_data:/data
+    command: server /data
+
+  minio-init:
+    build: ./minio-init  # Este es el directorio que contiene tu Dockerfile de minio-init
+    depends_on:
+      - minio
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio_data:/data
+
+
+  server:
+    build: ./server  # Cambiado de image a build para que funcione correctamente si es un proyecto local
+    working_dir: /app
+    volumes:
+      - ./server:/app
+    ports:
+      - "3000:3000"
+    command: ["node", "--watch", "server.mjs"]
+
+
+volumes:
+  minio_data:
+  server_data:

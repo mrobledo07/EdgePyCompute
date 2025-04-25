@@ -1,9 +1,43 @@
 import express from "express";
 import { loadPyodide } from "pyodide";
-import axios from "axios";
+// import axios from "axios";
+import * as Minio from "minio";
 
 const app = express();
 const port = 3000;
+
+async function getTextFromMinio(fileUrl) {
+  const parsedUrl = new URL(fileUrl);
+  const host = parsedUrl.hostname;
+  const port = parseInt(parsedUrl.port, 10);
+  const [, bucket, objectName] = parsedUrl.pathname.split("/");
+
+  const minioClient = new Minio.Client({
+    endPoint: host,
+    port: port,
+    useSSL: false,
+    accessKey: "minioadmin",
+    secretKey: "minioadmin",
+  });
+
+  const dataStream = await minioClient.getObject(bucket, objectName);
+
+  return new Promise((resolve, reject) => {
+    let fileContent = "";
+
+    dataStream.on("data", (chunk) => {
+      fileContent += chunk.toString();
+    });
+
+    dataStream.on("end", () => {
+      resolve(fileContent);
+    });
+
+    dataStream.on("error", (err) => {
+      reject(err);
+    });
+  });
+}
 
 // Middleware for parsing JSON requests
 app.use(express.json());
@@ -34,8 +68,7 @@ app.post("/run", async (req, res) => {
 
   try {
     // Obtain the file URL from the request
-    const response = await axios.get(file);
-    const text = response.data;
+    const text = await getTextFromMinio(file);
 
     const pythonCode = `
     ${code}

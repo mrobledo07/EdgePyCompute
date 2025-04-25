@@ -7,8 +7,7 @@ def word_count(text):
 `;
 
 // Parameters
-const file =
-  "https://example-files.online-convert.com/document/txt/example.txt";
+const file = "http://minio:9000/test/example.txt";
 
 try {
   const res = await axios.post("http://localhost:3000/run", {
