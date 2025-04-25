@@ -1,5 +1,6 @@
 import express from "express";
 import { loadPyodide } from "pyodide";
+import axios from "axios";
 
 const app = express();
 const port = 3000;
@@ -25,20 +26,25 @@ app.post("/run", async (req, res) => {
       .status(503)
       .json({ error: "Pyodide is still loading, try again later." });
   }
-  const { code, base, exponent } = req.body; // Get the code from the request body
+  const { code, file } = req.body; // Get the code from the request body
 
-  if (!code || base === undefined || exponent === undefined) {
+  if (!code || file === undefined) {
     return res.status(400).json({ error: "Missing code or arguments." });
   }
 
   try {
+    // Obtain the file URL from the request
+    const response = await axios.get(file);
+    const text = response.data;
+
     const pythonCode = `
     ${code}
-result = pow(${base}, ${exponent})  
+text = """${text}"""
+result = word_count(text)  
 result
     `;
 
-    console.log(pythonCode);
+    // console.log(pythonCode); // For debugging purposes
 
     // Execute the Python code
     const result = await pyodide.runPythonAsync(pythonCode);
@@ -46,8 +52,7 @@ result
     // Send the result back to the client
     res.json({
       result,
-      base,
-      exponent,
+      file,
     });
   } catch (err) {
     res

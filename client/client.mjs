@@ -1,24 +1,23 @@
 import axios from "axios";
 
 const code = `
-def pow(base, exp):
-    return base ** exp
+def word_count(text):
+    words = text.split()
+    return len(words)
 `;
 
 // Parameters
-const base = 7;
-const exponent = 2;
+const file =
+  "https://example-files.online-convert.com/document/txt/example.txt";
 
 try {
   const res = await axios.post("http://localhost:3000/run", {
     code,
-    base,
-    exponent,
+    file,
   });
   console.log("✅ Python result:", res.data.result);
   console.log("✅ Arguments used:", {
-    base: res.data.base,
-    exponent: res.data.exponent,
+    file: res.data.file,
   });
 } catch (err) {
   if (err.response) {
