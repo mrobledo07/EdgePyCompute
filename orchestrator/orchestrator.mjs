@@ -23,30 +23,70 @@ wss.on("connection", (ws, req) => {
   const workerId = url.searchParams.get("worker_id");
 
   if (taskId) {
-    console.log(`🔌 Client connected for task ${taskId}`);
-    const prevValue = taskClients.get(taskId);
-    prevValue.ws = ws; // Update existing client connection
-    taskClients.set(taskId, prevValue);
+    console.log(`🔌 Client WS connected for task ${taskId}`);
+    const info = taskClients.get(taskId);
+    info.ws = ws; // Update existing client connection
+    taskClients.set(taskId, info);
 
     ws.on("close", () => {
-      console.log(`❌ Client disconnected from task ${taskId}`);
+      console.log(`❌ Client WS disconnected from task ${taskId}`);
       taskClients.delete(taskId);
     });
   } else if (workerId) {
-    console.log(`🔌 Worker connected with ID ${workerId}`);
-    const prevWorker = workerServers.get(workerId);
-    prevWorker.ws = ws; // Update existing worker connection
-    workerServers.set(workerId, prevWorker);
+    console.log(`🔌 Worker WS connected with ID ${workerId}`);
+    const info = workerServers.get(workerId);
+    info.ws = ws; // Update existing worker connection
+    workerServers.set(workerId, info);
 
     ws.on("close", () => {
-      console.log(`❌ Worker disconnected with ID ${workerId}`);
+      console.log(`❌ Worker WS disconnected with ID ${workerId}`);
       workerServers.delete(workerId);
     });
+
+    ws.on("message", (data) => {
+      // Expect JSON: { taskId, status, result }
+      let msg;
+      try {
+        msg = JSON.parse(data.toString());
+      } catch (e) {
+        console.error("❌ Invalid JSON from worker:", data);
+        return;
+      }
+
+      console.log(`📨 From worker ${workerId}:`, msg);
+      taskExecuted(workerId, msg);
+      info.availableWorkers++;
+    });
   } else {
-    console.error("❌ WebSocket connection without task_id or worker_id");
+    console.error("❌ WebSocket WS connection without task_id or worker_id");
     ws.close();
   }
 });
+
+function taskExecuted(workerId, info) {
+  // Send task result to the corresponding client
+  const { arg, taskId, status, result } = info;
+  const clientInfo = taskClients.get(taskId);
+  if (!clientInfo) {
+    console.error(`❌ Client disconnected for task ID ${taskId}`);
+    return;
+  }
+  if (status === "done") {
+    console.log(
+      `✅ Worker ${workerId} executed successfully task ${arg}:${taskId} :`,
+      result
+    );
+    clientInfo.ws.send(JSON.stringify({ arg, taskId, status, result }));
+  } else if (status === "error") {
+    console.error(
+      `❌ Worker ${workerId} fail during executing task ${arg}:${taskId} :`,
+      result
+    );
+    clientInfo.ws.send(JSON.stringify({ arg, taskId, status, result }));
+  } else {
+    console.error(`❌ Unknown status for task ${taskId}:`, status);
+  }
+}
 
 // Handle task submissions from clients
 app.post("/register_task", async (req, res) => {
@@ -81,11 +121,14 @@ app.post("/register_task", async (req, res) => {
         worker.ws.send(JSON.stringify(infoTask), (err) => {
           if (err) {
             console.error(
-              `❌ Error sending task to worker ${worker.id}:`,
+              `❌ Error sending task to worker ${worker.worker_id}:`,
               err.message
             );
           } else {
-            console.log(`✅ Task sent to worker ${worker.id}:`, infoTask);
+            console.log(
+              `✅ Task sent to worker ${worker.worker_id}:`,
+              infoTask
+            );
             worker.availableWorkers--;
           }
         });
@@ -100,6 +143,7 @@ app.post("/register_worker", (req, res) => {
   const { numWorkers } = req.body;
 
   const newWorker = {
+    worker_id,
     maxWorkers: numWorkers || 1,
     availableWorkers: numWorkers || 1, // Default to 1 if not provided
   };

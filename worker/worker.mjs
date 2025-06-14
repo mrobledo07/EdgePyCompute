@@ -1,125 +1,93 @@
-import express from "express";
 import { loadPyodide } from "pyodide";
 import axios from "axios";
+import { io as Client } from "ws"; // Using ws client
 import * as Minio from "minio";
 
-const app = express();
-const port = 5000;
+const ORCHESTRATOR = "ws://localhost:3000"; // WS endpoint base
+const HTTP_ORCH = "http://localhost:3000";
 
 async function getTextFromMinio(fileUrl) {
-  const parsedUrl = new URL(fileUrl);
-  const host = parsedUrl.hostname;
-  const port = parseInt(parsedUrl.port, 10);
-  const [, bucket, objectName] = parsedUrl.pathname.split("/");
-
+  const parsed = new URL(fileUrl);
   const minioClient = new Minio.Client({
-    endPoint: host,
-    port: port,
+    endPoint: parsed.hostname,
+    port: parseInt(parsed.port),
     useSSL: false,
     accessKey: "minioadmin",
     secretKey: "minioadmin",
   });
-
-  const dataStream = await minioClient.getObject(bucket, objectName);
-
-  return new Promise((resolve, reject) => {
-    let fileContent = "";
-
-    dataStream.on("data", (chunk) => {
-      fileContent += chunk.toString();
-    });
-
-    dataStream.on("end", () => {
-      resolve(fileContent);
-    });
-
-    dataStream.on("error", (err) => {
-      reject(err);
-    });
+  const [, bucket, ...rest] = parsed.pathname.split("/");
+  const objectName = rest.join("/");
+  const stream = await minioClient.getObject(bucket, objectName);
+  return new Promise((res, rej) => {
+    let data = "";
+    stream.on("data", (c) => (data += c.toString()));
+    stream.on("end", () => res(data));
+    stream.on("error", (e) => rej(e));
   });
 }
 
-// Middleware for parsing JSON requests
-app.use(express.json());
-
-// Load Pyodide
-let pyodide;
-let pyodideReady = false;
-
-async function initPyodide() {
+// Load Pyodide\let pyodide, pyReady=false;
+async function initPy() {
   pyodide = await loadPyodide();
-  pyodideReady = true; // Set the flag to true when Pyodide is ready
-  console.log("Pyodide loaded");
+  pyReady = true;
+  console.log("Pyodide ready");
 }
-initPyodide();
+initPy();
 
-// Endpoint to execute Python code
-app.post("/execute", async (req, res) => {
-  if (!pyodideReady) {
-    return res
-      .status(503)
-      .json({ error: "Pyodide is still loading, try again later." });
-  }
-  const { code, file, task_id } = req.body; // Get the code from the request body
+let workerId;
+let ws;
 
-  if (!code || !file || !task_id) {
-    return res
-      .status(400)
-      .json({ error: "Missing code, arguments or task_id." });
-  }
-
-  try {
-    // Obtain the file URL from the request
-    const text = await getTextFromMinio(file);
-
-    const pythonCode = `
-    ${code}
-text = """${text}"""
-result = task(text)  
-result
-    `;
-
-    // console.log(pythonCode); // For debugging purposes
-
-    // Execute the Python code
-    const result = await pyodide.runPythonAsync(pythonCode);
-
-    // Send the result back to the client
-    res.json({
-      result,
-    });
-    console.log(
-      `🎯 Executed task ${task_id} for arg: ${arg}, result: ${result}`
-    );
-  } catch (err) {
-    res
-      .status(500)
-      .json({ error: "Error executing Python code", details: err.message });
-  }
-});
-
-// Endpoint to initialize the server
-app.listen(port, () => {
-  console.log(`Server is running at http://localhost:${port}`);
-});
-
-const numWorkers = 1; // Number of available processors in our worker (1 default)
-
-try {
-  const res = await axios.post(`${orchestrator}register_worker`, {
-    numWorkers,
+// Register with orchestrator and open WS
+async function registerAndConnect() {
+  const { data } = await axios.post(`${HTTP_ORCH}/register_worker`, {
+    numWorkers: 1,
   });
-} catch (err) {
-  if (err.response) {
-    console.error(
-      "❌ Error response from orchestrator server:",
-      err.response.data || err.message
-    );
-  } else if (err.request) {
-    console.error(
-      "❌ No response received from the orchestrator server. The server may be down."
-    );
-  } else {
-    console.error("❌ Error:", err.message);
-  }
+  workerId = data.worker_id;
+  ws = new Client(`${ORCHESTRATOR}/?worker_id=${workerId}`);
+
+  ws.on("open", () => console.log(`WS open as worker ${workerId}`));
+
+  ws.on("message", async (msg) => {
+    const { taskId, code, arg } = JSON.parse(msg.toString());
+    console.log(`▶️ Received task ${arg}:${taskId}`);
+
+    if (!pyReady) {
+      console.error(`Pyodide not ready for task ${arg}:${taskId}`);
+      ws.send(
+        JSON.stringify({
+          arg,
+          taskId,
+          status: "error",
+          error: "Pyodide not loaded, try again later.",
+        })
+      );
+      return;
+    }
+
+    try {
+      const text = await getTextFromMinio(arg);
+      const pyScript = `
+${code}
+text = '''${text}'''
+result = task(text)
+result
+      `;
+      const result = await pyodide.runPythonAsync(pyScript);
+      console.log(`✔️ Completed ${arg}:${taskId}:`, result);
+      ws.send(JSON.stringify({ arg, taskId, status: "done", result }));
+    } catch (e) {
+      console.error(`❌ Error on ${arg}:${taskId}:`, e);
+      ws.send(
+        JSON.stringify({ arg, taskId, status: "error", result: e.message })
+      );
+    }
+  });
+
+  ws.on("close", () => console.log("WS closed"));
 }
+
+registerAndConnect();
+
+app.post("/health", (req, res) => res.sendStatus(200));
+
+app.listen(port, () => console.log(`Worker HTTP listening on ${port}`));
