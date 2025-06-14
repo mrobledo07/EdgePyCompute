@@ -70,9 +70,10 @@ const dispatchTask = (task) => {
         // 3) If sending fails, re-queue the task
         worker.availableWorkers++;
         worker.tasksAssignated = worker.tasksAssignated.filter(
-          (t) => t.taskId !== task.taskId
+          (t) => t.taskId !== task.taskId && t.arg !== task.arg
         );
         taskQueue.unshift(task);
+        sortWorkers(); // Re-sort to reflect new availability
       } else {
         console.log(
           `✅ Task ${task.arg}:${task.taskId} sent to worker ${worker.worker_id}`
@@ -156,7 +157,7 @@ wss.on("connection", (ws, req) => {
         // A worker finished a task, so its availability increases
         worker.availableWorkers++;
         worker.tasksAssignated = worker.tasksAssignated.filter(
-          (task) => task.taskId !== msg.taskId
+          (t) => t.taskId !== task.taskId && t.arg !== task.arg
         ); // Remove the completed task from the worker's list
 
         console.log(
