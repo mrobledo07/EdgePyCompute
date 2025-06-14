@@ -47,12 +47,15 @@ async function registerAndConnect() {
     ws = new WebSocket(`${ORCHESTRATOR}?worker_id=${workerId}`);
 
     ws.on("open", () =>
-      console.log(`🔌 Connected to ORCHESTRATOR via WebSocket. ID:`, workerId)
+      console.log(
+        `🔌 Connected to ORCHESTRATOR via WebSocket. WORKERID:`,
+        workerId
+      )
     );
 
     ws.on("message", async (msg) => {
       const { taskId, code, arg } = JSON.parse(msg.toString());
-      console.log(`▶️ Received task ${arg}:${taskId}`);
+      console.log(`▶️ Worker ${workerId} received task ${arg}:${taskId}`);
 
       try {
         const text = await getTextFromMinio(arg);

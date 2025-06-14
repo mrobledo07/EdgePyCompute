@@ -1,3 +1,5 @@
+version: "3.9"
+
 services:
   minio:
     image: quay.io/minio/minio
@@ -6,13 +8,15 @@ services:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
     ports:
-      - "9000:9000"
+      - "9000:9000"  # Access MinIO from host via localhost:9000
     volumes:
       - minio_data:/data
     command: server /data
+    networks:
+      - app_net
 
   minio-init:
-    build: ./minio-init  
+    build: ./minio-init
     depends_on:
       - minio
     environment:
@@ -20,17 +24,25 @@ services:
       MINIO_ROOT_PASSWORD: minioadmin
     volumes:
       - minio_data:/data
+    networks:
+      - app_net
 
   orchestrator:
-    build: ./orchestrator  
+    build: ./orchestrator
     working_dir: /app
     volumes:
       - ./orchestrator:/app
     ports:
-      - "3000:3000"
+      - "3000:3000"  # Access Orchestrator from host via localhost:3000
     command: ["node", "--watch", "orchestrator.mjs"]
-
+    depends_on:
+      - minio
+    networks:
+      - app_net
 
 volumes:
   minio_data:
-  server_data:
+
+networks:
+  app_net:
+    driver: bridge

@@ -55,19 +55,19 @@ const dispatchTask = (task) => {
   const worker = workers[0];
 
   if (worker && worker.availableWorkers > 0) {
-    // 1) Reservamos el hueco _antes_ de enviar
+    // 1) Reserve the worker for this task
     worker.availableWorkers--;
     worker.tasksAssignated.push(task);
-    sortWorkers(); // reordena si quieres
+    sortWorkers(); // Re-sort after reserving a worker
 
-    // 2) Ahora enviamos
+    // 2) Send the task to the worker
     worker.ws.send(JSON.stringify(task), (err) => {
       if (err) {
         console.error(
           `❌ Error sending task to worker ${worker.worker_id}:`,
           err.message
         );
-        // Si falla, devolvemos el hueco y re-enqueueamos
+        // 3) If sending fails, re-queue the task
         worker.availableWorkers++;
         worker.tasksAssignated = worker.tasksAssignated.filter(
           (t) => t.taskId !== task.taskId
@@ -108,6 +108,10 @@ wss.on("connection", (ws, req) => {
     ws.on("close", () => {
       console.log(`❌ Client disconnected from task ${taskId}`);
       taskClients.delete(taskId);
+      taskQueue = taskQueue.filter((task) => task.taskId !== taskId);
+      console.log(
+        `🗑️ Tasks ${taskId} removed from queue due to client disconnect.`
+      );
     });
   } else if (workerId) {
     // Handle worker connection

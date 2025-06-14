@@ -19,3 +19,4 @@ By compiling Python code to WebAssembly (via Pyodide), the system allows seamles
 3. Execute the following command to build the Docker image and start the containers:
 ```bash
 docker-compose up
+4. Execute test.sh

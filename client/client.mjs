@@ -3,7 +3,7 @@ import WebSocket from "ws"; // Using ws client
 
 const HTTP_ORCH = "http://localhost:3000";
 const ORCHESTRATOR = "ws://localhost:3000";
-const STORAGE = "http://172.18.0.2:9000";
+const STORAGE = "http://minio:9000";
 
 // Code
 const code = `
@@ -36,7 +36,7 @@ async function start() {
     ws = new WebSocket(`${ORCHESTRATOR}?task_id=${taskId}`);
 
     ws.on("open", () =>
-      console.log("🔌 Connected to ORCHESTRATOR via WebSocket. ID:", taskId)
+      console.log("🔌 Connected to ORCHESTRATOR via WebSocket. TASKID:", taskId)
     );
 
     ws.on("message", (data) => {
@@ -61,7 +61,10 @@ async function start() {
     });
 
     ws.on("close", () => {
-      console.log("🔌 WebSocket connection to ORCHESTRATOR closed.");
+      console.log(
+        "🔌 WebSocket connection to ORCHESTRATOR closed. TASKID:",
+        taskId
+      );
     });
 
     ws.on("error", (err) => {
