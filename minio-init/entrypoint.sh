@@ -13,8 +13,13 @@ echo "✅ MinIO is ready, proceeding..."
 # Set the client alias
 mc alias set myminio http://minio:9000 minioadmin minioadmin
 
-# Create the bucket if it doesn't exist
-mc mb myminio/test || echo "🪣 Bucket already exists"
+# Check if bucket exists
+if mc ls myminio/test > /dev/null 2>&1; then
+  echo "🪣 Bucket 'test' already exists"
+else
+  mc mb myminio/test
+  echo "🪣 Bucket 'test' created"
+fi
 
 # Upload the file
 mc cp /minio-init/example1.txt myminio/test/

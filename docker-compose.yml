@@ -7,13 +7,12 @@ services:
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
     ports:
       - "9000:9000"  # Access MinIO from host via localhost:9000
+      - "9001:9001"  # Access MinIO Console from host via localhost:9001
     volumes:
       - minio_data:/data
-    command: server /data
-    networks:
-      - app_net
 
   minio-init:
     build: ./minio-init
@@ -24,8 +23,6 @@ services:
       MINIO_ROOT_PASSWORD: minioadmin
     volumes:
       - minio_data:/data
-    networks:
-      - app_net
 
   orchestrator:
     build: ./orchestrator
@@ -37,12 +34,6 @@ services:
     command: ["node", "--watch", "orchestrator.mjs"]
     depends_on:
       - minio
-    networks:
-      - app_net
 
 volumes:
   minio_data:
-
-networks:
-  app_net:
-    driver: bridge

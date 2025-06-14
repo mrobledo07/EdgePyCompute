@@ -3,7 +3,7 @@ import WebSocket from "ws"; // Using ws client
 
 const HTTP_ORCH = "http://localhost:3000";
 const ORCHESTRATOR = "ws://localhost:3000";
-const STORAGE = "http://minio:9000";
+const STORAGE = "http://localhost:9000";
 
 // Code
 const code = `

@@ -68,10 +68,10 @@ result
         // console.log(
         //   `📜 Executing task ${arg}:${taskId} with code:\n${pyScript}`
         // );
-        const result = await pyodide.runPythonAsync(pyScript);
-        console.log(`✔️ Completed ${arg}:${taskId}:`, result);
         //sleep for 10 seconds to simulate a long task
         await new Promise((resolve) => setTimeout(resolve, 10000));
+        const result = await pyodide.runPythonAsync(pyScript);
+        console.log(`✔️ Completed ${arg}:${taskId}:`, result);
         ws.send(JSON.stringify({ arg, taskId, status: "done", result }));
       } catch (e) {
         console.error(`❌ Error on ${arg}:${taskId}:`, e.message);
