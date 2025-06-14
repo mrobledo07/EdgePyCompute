@@ -1,10 +1,10 @@
 import express from "express";
 import { loadPyodide } from "pyodide";
-// import axios from "axios";
+import axios from "axios";
 import * as Minio from "minio";
 
 const app = express();
-const port = 3000;
+const port = 5000;
 
 async function getTextFromMinio(fileUrl) {
   const parsedUrl = new URL(fileUrl);
@@ -54,16 +54,18 @@ async function initPyodide() {
 initPyodide();
 
 // Endpoint to execute Python code
-app.post("/run", async (req, res) => {
+app.post("/execute", async (req, res) => {
   if (!pyodideReady) {
     return res
       .status(503)
       .json({ error: "Pyodide is still loading, try again later." });
   }
-  const { code, file } = req.body; // Get the code from the request body
+  const { code, file, task_id } = req.body; // Get the code from the request body
 
-  if (!code || file === undefined) {
-    return res.status(400).json({ error: "Missing code or arguments." });
+  if (!code || !file || !task_id) {
+    return res
+      .status(400)
+      .json({ error: "Missing code, arguments or task_id." });
   }
 
   try {
@@ -73,7 +75,7 @@ app.post("/run", async (req, res) => {
     const pythonCode = `
     ${code}
 text = """${text}"""
-result = word_count(text)  
+result = task(text)  
 result
     `;
 
@@ -85,8 +87,10 @@ result
     // Send the result back to the client
     res.json({
       result,
-      file,
     });
+    console.log(
+      `🎯 Executed task ${task_id} for arg: ${arg}, result: ${result}`
+    );
   } catch (err) {
     res
       .status(500)
@@ -98,3 +102,24 @@ result
 app.listen(port, () => {
   console.log(`Server is running at http://localhost:${port}`);
 });
+
+const numWorkers = 1; // Number of available processors in our worker (1 default)
+
+try {
+  const res = await axios.post(`${orchestrator}register_worker`, {
+    numWorkers,
+  });
+} catch (err) {
+  if (err.response) {
+    console.error(
+      "❌ Error response from orchestrator server:",
+      err.response.data || err.message
+    );
+  } else if (err.request) {
+    console.error(
+      "❌ No response received from the orchestrator server. The server may be down."
+    );
+  } else {
+    console.error("❌ Error:", err.message);
+  }
+}
