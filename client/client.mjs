@@ -13,11 +13,17 @@ def task(text):
 `;
 
 // Parameters
-const args = [`${STORAGE}/test/example.txt`, `${STORAGE}/test/example2.txt`];
+const args = [
+  `${STORAGE}/test/example1.txt`,
+  `${STORAGE}/test/example2.txt`,
+  `${STORAGE}/test/example3.txt`,
+  `${STORAGE}/test/example4.txt`,
+];
 
 const maxTasks = args.length;
 let tasksExecuted = 0;
 let ws;
+
 async function start() {
   try {
     const res = await axios.post(`${HTTP_ORCH}/register_task`, {
@@ -30,7 +36,7 @@ async function start() {
     ws = new Client(`${ORCHESTRATOR}/?task_id=${taskId}`);
 
     ws.on("open", () =>
-      console.log("🔌 Connected to ORCHESTRATOR via WebSocket")
+      console.log("🔌 Connected to ORCHESTRATOR via WebSocket. ID:", taskId)
     );
 
     ws.on("message", (event) => {
@@ -40,9 +46,9 @@ async function start() {
         ws.close();
       } else {
         const data = JSON.parse(event.data);
-        const { arg, taskId, status, result } = data;
+        const { arg, status, result } = data;
         console.log(
-          `📦 Task ${arg}:${taskId} executed. Status: ${status}. Result; ${result}`
+          `📦 Task ${arg} executed. Status: ${status}. Result: ${result}`
         );
       }
     });
@@ -69,3 +75,5 @@ async function start() {
     }
   }
 }
+
+start();

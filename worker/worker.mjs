@@ -45,7 +45,9 @@ async function registerAndConnect() {
   workerId = data.worker_id;
   ws = new Client(`${ORCHESTRATOR}/?worker_id=${workerId}`);
 
-  ws.on("open", () => console.log(`WS open as worker ${workerId}`));
+  ws.on("open", () =>
+    console.log(`🔌 Connected to ORCHESTRATOR via WebSocket. ID:`, workerId)
+  );
 
   ws.on("message", async (msg) => {
     const { taskId, code, arg } = JSON.parse(msg.toString());

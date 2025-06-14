@@ -27,7 +27,7 @@ services:
     volumes:
       - ./orchestrator:/app
     ports:
-      - "8080:8080"
+      - "3000:3000"
     command: ["node", "--watch", "orchestrator.mjs"]
 
 

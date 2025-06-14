@@ -6,4 +6,4 @@ COPY . .
 
 RUN npm install
 
-CMD ["node", "server.mjs"]
+CMD ["node", "orchestrator.mjs"]
