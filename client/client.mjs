@@ -3,7 +3,7 @@ import { io as Client } from "ws"; // Using ws client
 
 const HTTP_ORCH = "http://localhost:3000";
 const ORCHESTRATOR = "ws://localhost:3000";
-const STORAGE = "http://minio:9000/";
+const STORAGE = "http://minio:9000";
 
 // Code
 const code = `
@@ -13,7 +13,7 @@ def task(text):
 `;
 
 // Parameters
-const args = [`${STORAGE}test/example.txt`, `${STORAGE}test/example2.txt`];
+const args = [`${STORAGE}/test/example.txt`, `${STORAGE}/test/example2.txt`];
 
 const maxTasks = args.length;
 let tasksExecuted = 0;

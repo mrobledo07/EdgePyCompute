@@ -12,7 +12,7 @@ services:
     command: server /data
 
   minio-init:
-    build: ./minio-init  # Este es el directorio que contiene tu Dockerfile de minio-init
+    build: ./minio-init  
     depends_on:
       - minio
     environment:
@@ -21,15 +21,14 @@ services:
     volumes:
       - minio_data:/data
 
-
-  server:
-    build: ./server  # Cambiado de image a build para que funcione correctamente si es un proyecto local
+  orchestrator:
+    build: ./orchestrator  
     working_dir: /app
     volumes:
-      - ./server:/app
+      - ./orchestrator:/app
     ports:
-      - "3000:3000"
-    command: ["node", "--watch", "server.mjs"]
+      - "8080:8080"
+    command: ["node", "--watch", "orchestrator.mjs"]
 
 
 volumes:
