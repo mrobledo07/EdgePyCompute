@@ -1,9 +1,9 @@
 import axios from "axios";
-import { io as Client } from "ws"; // Using ws client
+import WebSocket from "ws"; // Using ws client
 
 const HTTP_ORCH = "http://localhost:3000";
 const ORCHESTRATOR = "ws://localhost:3000";
-const STORAGE = "http://minio:9000";
+const STORAGE = "http://172.18.0.2:9000";
 
 // Code
 const code = `
@@ -33,22 +33,29 @@ async function start() {
 
     const taskId = res.data.task_id;
     console.log("🚀 Task submitted. ID:", taskId);
-    ws = new Client(`${ORCHESTRATOR}/?task_id=${taskId}`);
+    ws = new WebSocket(`${ORCHESTRATOR}?task_id=${taskId}`);
 
     ws.on("open", () =>
       console.log("🔌 Connected to ORCHESTRATOR via WebSocket. ID:", taskId)
     );
 
-    ws.on("message", (event) => {
+    ws.on("message", (data) => {
       tasksExecuted++;
-      if (tasksExecuted >= maxTasks) {
-        console.log("✅ All tasks executed successfully.");
-        ws.close();
-      } else {
-        const data = JSON.parse(event.data);
-        const { arg, status, result } = data;
+
+      try {
+        const { arg, status, result } = JSON.parse(data.toString());
         console.log(
-          `📦 Task ${arg} executed. Status: ${status}. Result: ${result}`
+          `📦 Task [${arg}] executed. Status: ${status}. Result: ${result}`
+        );
+
+        if (tasksExecuted >= maxTasks) {
+          console.log("Tasks executed.");
+          ws.close();
+        }
+      } catch (err) {
+        console.error(
+          "❌ Error parsing message from ORCHESTRATOR:",
+          err.message
         );
       }
     });

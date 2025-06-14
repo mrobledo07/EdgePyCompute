@@ -17,5 +17,8 @@ mc alias set myminio http://minio:9000 minioadmin minioadmin
 mc mb myminio/test || echo "🪣 Bucket already exists"
 
 # Upload the file
-mc cp /minio-init/example.txt myminio/test/
-echo "📤 example.txt uploaded to the 'test' bucket"
+mc cp /minio-init/example1.txt myminio/test/
+mc cp /minio-init/example2.txt myminio/test/
+mc cp /minio-init/example3.txt myminio/test/
+mc cp /minio-init/example4.txt myminio/test/
+echo "📤 examples txt uploaded to the 'test' bucket"

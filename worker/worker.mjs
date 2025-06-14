@@ -1,6 +1,6 @@
 import { loadPyodide } from "pyodide";
 import axios from "axios";
-import { io as Client } from "ws"; // Using ws client
+import WebSocket from "ws"; // Using ws client
 import * as Minio from "minio";
 
 const ORCHESTRATOR = "ws://localhost:3000"; // WS endpoint base
@@ -26,70 +26,86 @@ async function getTextFromMinio(fileUrl) {
   });
 }
 
-// Load Pyodide\let pyodide, pyReady=false;
-async function initPy() {
-  pyodide = await loadPyodide();
-  pyReady = true;
-  console.log("Pyodide ready");
-}
-initPy();
+let pyodide;
 
+// 1. Inicializa Pyodide y espera a que termine
+async function initPy() {
+  console.log("⏳ Loading Pyodide...");
+  pyodide = await loadPyodide();
+  console.log("✅ Pyodide ready");
+}
 let workerId;
 let ws;
 
 // Register with orchestrator and open WS
 async function registerAndConnect() {
-  const { data } = await axios.post(`${HTTP_ORCH}/register_worker`, {
-    numWorkers: 1,
-  });
-  workerId = data.worker_id;
-  ws = new Client(`${ORCHESTRATOR}/?worker_id=${workerId}`);
+  try {
+    const { data } = await axios.post(`${HTTP_ORCH}/register_worker`, {
+      numWorkers: 1,
+    });
+    workerId = data.worker_id;
+    ws = new WebSocket(`${ORCHESTRATOR}?worker_id=${workerId}`);
 
-  ws.on("open", () =>
-    console.log(`🔌 Connected to ORCHESTRATOR via WebSocket. ID:`, workerId)
-  );
+    ws.on("open", () =>
+      console.log(`🔌 Connected to ORCHESTRATOR via WebSocket. ID:`, workerId)
+    );
 
-  ws.on("message", async (msg) => {
-    const { taskId, code, arg } = JSON.parse(msg.toString());
-    console.log(`▶️ Received task ${arg}:${taskId}`);
+    ws.on("message", async (msg) => {
+      const { taskId, code, arg } = JSON.parse(msg.toString());
+      console.log(`▶️ Received task ${arg}:${taskId}`);
 
-    if (!pyReady) {
-      console.error(`Pyodide not ready for task ${arg}:${taskId}`);
-      ws.send(
-        JSON.stringify({
-          arg,
-          taskId,
-          status: "error",
-          error: "Pyodide not loaded, try again later.",
-        })
-      );
-      return;
-    }
-
-    try {
-      const text = await getTextFromMinio(arg);
-      const pyScript = `
-${code}
+      try {
+        const text = await getTextFromMinio(arg);
+        const pyScript = `
+      ${code}
 text = '''${text}'''
 result = task(text)
 result
       `;
-      const result = await pyodide.runPythonAsync(pyScript);
-      console.log(`✔️ Completed ${arg}:${taskId}:`, result);
-      ws.send(JSON.stringify({ arg, taskId, status: "done", result }));
-    } catch (e) {
-      console.error(`❌ Error on ${arg}:${taskId}:`, e);
-      ws.send(
-        JSON.stringify({ arg, taskId, status: "error", result: e.message })
-      );
-    }
-  });
+        // console.log(
+        //   `📜 Executing task ${arg}:${taskId} with code:\n${pyScript}`
+        // );
+        const result = await pyodide.runPythonAsync(pyScript);
+        console.log(`✔️ Completed ${arg}:${taskId}:`, result);
+        //sleep for 10 seconds to simulate a long task
+        await new Promise((resolve) => setTimeout(resolve, 10000));
+        ws.send(JSON.stringify({ arg, taskId, status: "done", result }));
+      } catch (e) {
+        console.error(`❌ Error on ${arg}:${taskId}:`, e.message);
+        ws.send(
+          JSON.stringify({ arg, taskId, status: "error", result: e.message })
+        );
+      }
+    });
 
-  ws.on("close", () => console.log("WS closed"));
+    ws.on("close", () =>
+      console.log("🔌 WebSocket connection to ORCHESTRATOR closed.")
+    );
+    ws.on("error", (err) => {
+      console.error("❌ WebSocket ORCHESTRATOR error:", err.message);
+    });
+  } catch (err) {
+    if (err.response) {
+      console.error(
+        "❌ Error response from ORCHESTRATOR server:",
+        err.response.data || err.message
+      );
+    } else if (err.request) {
+      console.error(
+        "❌ No response received from the ORCHESTRATOR server. The server may be down."
+      );
+    } else {
+      console.error("❌ Error:", err.message);
+    }
+  }
 }
 
-registerAndConnect();
-
-app.post("/health", (req, res) => res.sendStatus(200));
-
-app.listen(port, () => console.log(`Worker HTTP listening on ${port}`));
+(async () => {
+  try {
+    await initPy();
+    await registerAndConnect();
+  } catch (err) {
+    console.error("❌ Fatal error during startup:", err);
+    process.exit(1);
+  }
+})();

@@ -33,7 +33,6 @@ const sortWorkers = () => {
  * Tries to assign tasks from the queue to any available workers.
  */
 const processTaskQueue = () => {
-  // Keep processing while there are tasks and available workers
   while (
     taskQueue.length > 0 &&
     workers.length > 0 &&
@@ -42,9 +41,7 @@ const processTaskQueue = () => {
     console.log(
       `Processing queue. Tasks waiting: ${taskQueue.length}. Top worker availability: ${workers[0].availableWorkers}`
     );
-    // Dequeue the oldest task
     const task = taskQueue.shift();
-    // Dispatch it
     dispatchTask(task);
   }
 };
@@ -55,30 +52,34 @@ const processTaskQueue = () => {
  * @param {object} task - The task object { code, arg, taskId }.
  */
 const dispatchTask = (task) => {
-  // Find the most available worker (always the first in the sorted array)
-  const mostAvailableWorker = workers[0];
+  const worker = workers[0];
 
-  if (mostAvailableWorker && mostAvailableWorker.availableWorkers > 0) {
-    // A worker is available, send the task
-    mostAvailableWorker.ws.send(JSON.stringify(task), (err) => {
+  if (worker && worker.availableWorkers > 0) {
+    // 1) Reservamos el hueco _antes_ de enviar
+    worker.availableWorkers--;
+    worker.tasksAssignated.push(task);
+    sortWorkers(); // reordena si quieres
+
+    // 2) Ahora enviamos
+    worker.ws.send(JSON.stringify(task), (err) => {
       if (err) {
         console.error(
-          `❌ Error sending task to worker ${mostAvailableWorker.worker_id}:`,
+          `❌ Error sending task to worker ${worker.worker_id}:`,
           err.message
         );
-        // If sending fails, put the task back at the front of the queue
+        // Si falla, devolvemos el hueco y re-enqueueamos
+        worker.availableWorkers++;
+        worker.tasksAssignated = worker.tasksAssignated.filter(
+          (t) => t.taskId !== task.taskId
+        );
         taskQueue.unshift(task);
       } else {
         console.log(
-          `✅ Task ${arg}:${task.taskId} sent to worker ${mostAvailableWorker.worker_id}`
+          `✅ Task ${task.arg}:${task.taskId} sent to worker ${worker.worker_id}`
         );
-        mostAvailableWorker.availableWorkers--;
-        // Re-sort the list since a worker's availability has changed
-        sortWorkers();
       }
     });
   } else {
-    // No workers available, queue the task
     console.log(
       `🕒 No available workers. Task for "${task.arg}:${task.taskId}" queued.`
     );
@@ -120,6 +121,16 @@ wss.on("connection", (ws, req) => {
 
     ws.on("close", () => {
       console.log(`❌ Worker disconnected with ID ${workerId}`);
+      // If worker had tasks assigned, they need to be re-queued
+      const worker = workers.find((w) => w.worker_id === workerId);
+      if (worker.tasksAssignated.length > 0) {
+        taskQueue.push(...worker.tasksAssignated);
+        console.log(
+          "Tasks re-queued from disconnected worker:",
+          worker.tasksAssignated.map((task) => `${task.arg}:${task.taskId}`)
+        );
+      }
+
       // Remove the worker from the list
       workers = workers.filter((w) => w.worker_id !== workerId);
       sortWorkers(); // Re-sort the list
@@ -140,6 +151,10 @@ wss.on("connection", (ws, req) => {
       if (worker) {
         // A worker finished a task, so its availability increases
         worker.availableWorkers++;
+        worker.tasksAssignated = worker.tasksAssignated.filter(
+          (task) => task.taskId !== msg.taskId
+        ); // Remove the completed task from the worker's list
+
         console.log(
           `✨ Worker ${workerId} now has ${worker.availableWorkers} available processors.`
         );
@@ -182,6 +197,7 @@ app.post("/register_worker", (req, res) => {
     ws: null, // WebSocket will be attached on connection
     maxWorkers: numWorkers || 1,
     availableWorkers: numWorkers || 1,
+    tasksAssignated: [],
   };
 
   workers.push(newWorker);
