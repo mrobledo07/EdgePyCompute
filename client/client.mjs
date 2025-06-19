@@ -6,11 +6,30 @@ const ORCHESTRATOR = "ws://localhost:3000";
 const STORAGE = "http://localhost:9000";
 
 // Code
-const code = `
+const codeMap = `
+import json
+from collections import Counter
+
 def task(text):
     words = text.split()
-    return len(words)
+    counter = Counter(words)
+    return json.dumps(counter)
 `;
+
+const codeReduce = `
+import json
+
+def task(text):
+    partial_results = json.loads(text)
+    final_counts = {}
+
+    for word, counts in partial_results.items():
+        final_counts[word] = sum(counts)
+
+    return json.dumps(final_counts)
+`;
+
+const code = [codeMap, codeReduce];
 
 // Parameters
 const args = [
@@ -29,6 +48,7 @@ async function start() {
     const res = await axios.post(`${HTTP_ORCH}/register_task`, {
       code,
       args,
+      type: "mapreduce",
     });
 
     const taskId = res.data.task_id;
