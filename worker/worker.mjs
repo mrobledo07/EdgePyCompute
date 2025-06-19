@@ -7,16 +7,20 @@ const ORCHESTRATOR = "ws://localhost:3000"; // WS endpoint base
 const HTTP_ORCH = "http://localhost:3000";
 
 let minioClient;
+let host;
+let port;
 
 const createMinioClient = (fileURL) => {
   const parsed = new URL(fileURL);
-  return new Minio.Client({
+  minioClient = new Minio.Client({
     endPoint: parsed.hostname,
     port: parseInt(parsed.port),
     useSSL: false,
     accessKey: "minioadmin",
     secretKey: "minioadmin",
   });
+  host = parsed.hostname;
+  port = parsed.port;
 };
 
 const obtainBucketAndObjectName = (fileUrl) => {
@@ -28,7 +32,7 @@ const obtainBucketAndObjectName = (fileUrl) => {
 
 async function getTextFromMinio(fileUrl, offset = -1, numMappers = -1) {
   const parsed = new URL(fileUrl);
-  minioClient = createMinioClient(parsed);
+  createMinioClient(parsed);
   const { bucket, objectName } = obtainBucketAndObjectName(fileUrl);
   let stream;
   if (offset == -1) {
@@ -65,10 +69,10 @@ async function initPy() {
 async function getPartialObjectMinio(task) {
   const offset = task.numWorker;
   const numMappers = task.numMappers;
-  if (!offset || !numMappers) {
-    console.error(
-      "❌ Invalid task received. Missing offset or num of mappers for MAPPER partial object."
-    );
+  console.log(
+    `🔍 Getting partial object from Minio: offset=${offset}, numMappers=${numMappers}`
+  );
+  if (offset === undefined || numMappers === undefined) {
     throw new Error(
       "Invalid task received. Missing offset or num of mappers for MAPPER partial object."
     );
@@ -87,27 +91,53 @@ async function getSerializedMappersResults(results) {
   const resultJSON = {};
   for (const result of results) {
     const partialResult = await getTextFromMinio(result);
+    console.log("Reducer input:", partialResult);
+
     const deserializedJSONResult = JSON.parse(partialResult);
-    for (const [, count] of deserializedJSONResult) {
-      if (!resultJSON.word) resultJSON.word = [count];
-      else resultJSON.word.push(count);
+    console.log("Deserialized JSON result:", deserializedJSONResult);
+    for (const word in deserializedJSONResult) {
+      const count = deserializedJSONResult[word];
+      if (!resultJSON[word]) resultJSON[word] = [count];
+      else resultJSON[word].push(count);
     }
   }
+  console.log("Final result JSON for REDUCER:", resultJSON);
+  console.log(
+    "🔍 Returning serialized results for REDUCER:",
+    JSON.stringify(resultJSON)
+  );
+  // Return the
   return JSON.stringify(resultJSON);
 }
 
-async function setSerializedMapperResult(result) {
-  const resultURL = "${task.taskId}/${workerId}/${task.numWorker}.txt";
+async function setSerializedMapperResult(task, result) {
+  const resultURL = `http://${host}:${port}/${task.taskId}/${workerId}/${task.numWorker}.txt`;
   const resultJSON = JSON.stringify(result);
   const { bucket, objectName } = obtainBucketAndObjectName(resultURL);
   // minioClient is created already in getTextFromMinio
-  await minioClient.putObject(
-    bucket,
-    objectName,
-    Buffer.from(resultJSON),
-    resultJSON.length,
-    "application/json"
-  );
+  try {
+    await minioClient.makeBucket(bucket, "us-east-1");
+  } catch (e) {
+    if (e.code !== "BucketAlreadyOwnedByYou") {
+      console.error(`❌ Error creating bucket ${bucket}:`, e.message);
+      throw e;
+    }
+    console.log(`ℹ️ Bucket ${bucket} already exists, skipping creation.`);
+  }
+  console.log(`📦 Storing result in Minio: ${resultURL}`);
+  // Store the result in Minio
+  try {
+    await minioClient.putObject(
+      bucket,
+      objectName,
+      Buffer.from(resultJSON),
+      resultJSON.length,
+      "application/json"
+    );
+  } catch (e) {
+    console.error(`❌ Error storing result in Minio:`, e.message);
+    throw e;
+  }
   return resultURL;
 }
 
@@ -115,29 +145,43 @@ async function executeCodeAndSendResult(task) {
   try {
     let text;
     if (task.type == "map") {
+      console.log(
+        `🔍 Getting partial object for MAPPER task ${task.arg}:${task.taskId}`
+      );
+      //
       text = await getPartialObjectMinio(task);
     } else if (task.type == "reduce") {
+      console.log(
+        `🔍 Getting serialized results for REDUCER task ${task.arg}:${task.taskId}`
+      );
       text = await getSerializedMappersResults(task.arg);
     } else {
+      console.log(
+        `🔍 Getting full object for task ${task.arg}:${task.taskId} (not
+        map or reduce)`
+      );
       text = await getTextFromMinio(task.arg);
     }
 
     const pyScript = `
       ${task.code}
 text = '''${text}'''
-result = task(text)
+try:
+    result = task(text)
+except Exception as e:
+    result = str(e)
 result
       `;
-    // console.log(
-    //   `📜 Executing task ${arg}:${taskId} with code:\n${pyScript}`
-    // );
+    console.log(
+      `📜 Executing task ${task.arg}:${task.taskId} with code:\n${pyScript}`
+    );
     //sleep for 3 seconds to simulate a long task
-    await new Promise((resolve) => setTimeout(resolve, 3000));
+    // await new Promise((resolve) => setTimeout(resolve, 3000));
     const result = await pyodide.runPythonAsync(pyScript);
     console.log(`✔️ Completed ${task.arg}:${task.taskId}:`, result);
 
     if (task.type == "map") {
-      const resultURL = setSerializedMapperResult(result);
+      const resultURL = await setSerializedMapperResult(task, result);
       // Create resultUrl
       ws.send(
         JSON.stringify({

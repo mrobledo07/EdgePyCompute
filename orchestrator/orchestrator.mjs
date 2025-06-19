@@ -54,7 +54,7 @@ const getWorkersAvailable = () => {
   let numWorkers = 0;
   for (const worker of workers) {
     if (worker.availableWorkers == 0) return numWorkers;
-    for (i = 0; i < worker.availableWorkers; i++) {
+    for (let i = 0; i < worker.availableWorkers; i++) {
       worker.worker_num = numWorkers;
       availWorkers.push(worker);
       numWorkers++;
@@ -65,7 +65,13 @@ const getWorkersAvailable = () => {
 
 const dispatchMappers = (task) => {
   const availableWorkers = getWorkersAvailable();
+  console.log("TRYING TO DISPATCH MAPPERS CODE,", task.code);
+  let mapper_code = task.code[0];
+  let reducer_code = task.code[1];
+  console.log("MAPPER CODE:", mapper_code);
+  console.log("REDUCER CODE:", reducer_code);
   task.type = "map";
+  task.code = mapper_code; // Use the first code for mappers
   if (availableWorkers == 0) {
     console.log(
       `🕒 No available workers. Job for MAPPERS "${task.arg}:${task.taskId}" queued.`
@@ -75,11 +81,12 @@ const dispatchMappers = (task) => {
     task.numMappers = availableWorkers.length;
     for (const worker of availableWorkers) {
       task.numWorker = worker.worker_num;
-      reserveWorkerAndSendTask(task);
+      reserveWorkerAndSendTask(worker, task);
     }
     const infoMapReduce = {
-      numMappers,
-      codeReduce: task.code[1],
+      numMappers: task.numMappers,
+      codeReduce: reducer_code,
+      results: [],
     };
     mapreduceTasks.set(task.taskId, infoMapReduce);
   }
@@ -99,7 +106,7 @@ const dispatchTask = (task) => {
   const worker = workers[0];
 
   if (worker && worker.availableWorkers > 0) {
-    reserveWorkerAndSendTask(worker);
+    reserveWorkerAndSendTask(worker, task);
   } else {
     console.log(
       `🕒 No available workers. Task for "${task.arg}:${task.taskId}" queued.`
@@ -108,7 +115,7 @@ const dispatchTask = (task) => {
   }
 };
 
-const reserveWorkerAndSendTask = (worker) => {
+const reserveWorkerAndSendTask = (worker, task) => {
   // 1) Reserve the worker for this task
   worker.availableWorkers--;
   worker.tasksAssignated.push(task);
@@ -156,11 +163,14 @@ wss.on("connection", (ws, req) => {
 
     ws.on("close", () => {
       console.log(`❌ Client disconnected from task ${taskId}`);
+      let numTasks = taskClients.get(taskId).numTasks;
       taskClients.delete(taskId);
-      taskQueue = taskQueue.filter((task) => task.taskId !== taskId);
-      console.log(
-        `🗑️ Tasks ${taskId} removed from queue due to client disconnect.`
-      );
+      if (numTasks > 0) {
+        taskQueue = taskQueue.filter((task) => task.taskId !== taskId);
+        console.log(
+          `🗑️ Tasks ${taskId} removed from queue due to client disconnect.`
+        );
+      }
     });
   } else if (workerId) {
     // Handle worker connection
@@ -205,7 +215,7 @@ wss.on("connection", (ws, req) => {
         // A worker finished a task, so its availability increases
         worker.availableWorkers++;
         worker.tasksAssignated = worker.tasksAssignated.filter(
-          (t) => t.taskId !== task.taskId && t.arg !== task.arg
+          (t) => t.taskId !== msg.taskId && t.arg !== msg.arg
         ); // Remove the completed task from the worker's list
 
         console.log(
@@ -217,26 +227,42 @@ wss.on("connection", (ws, req) => {
       // If it is a mapreduce task, decrease counter and do not send result to client
       let infoTask = mapreduceTasks.get(msg.taskId);
       if (infoTask) {
-        infoTask.taskMappers--;
+        console.log("CODE REDUCE:", infoTask.codeReduce);
+        infoTask.numMappers--;
         infoTask.results.push(msg.result);
         mapreduceTasks.set(msg.taskId, infoTask);
+        console.log(
+          `📦 Worker ${workerId} completed a mapper for task ${msg.taskId}.
+          Remaining mappers: ${infoTask.numMappers}`
+        );
       }
 
-      if (infoTask.taskMappers == 0) {
+      if (infoTask && infoTask.numMappers == 0) {
         // If map stage of this job ended, we can start reduce
-        let taskId = msg.TaskId;
+        console.log("CODE REDUCE:", infoTask.codeReduce);
+
+        console.log(
+          `🔄 Map stage for task ${msg.taskId} completed. Starting reduce stage.`
+        );
+        //
+        let taskId = msg.taskId;
         let type = "reduce";
         mapreduceTasks.delete(taskId);
-        dispatchTask({
+        let reduceTask = {
           code: infoTask.codeReduce,
           arg: infoTask.results,
           taskId,
           type,
-        });
+        };
+        console.log(
+          `📦 Dispatching reduce task for ${taskId} with results ${infoTask.results} and code ${infoTask.codeReduce}`
+        );
+        dispatchTask(reduceTask);
       }
 
       // Forward result to the client
       if (!infoTask) {
+        console.log("📤 Forwarding result to client:", msg);
         const clientInfo = taskClients.get(msg.taskId);
         if (clientInfo && clientInfo.ws) {
           clientInfo.ws.send(
@@ -246,6 +272,11 @@ wss.on("connection", (ws, req) => {
               result: msg.result,
             })
           );
+          clientInfo.numTasks--; // Decrease the number of tasks for this client
+          if (clientInfo.numTasks <= 0) {
+            console.log(`✅ All tasks for client ${msg.taskId} completed.`);
+            clientInfo.ws.close(); // Close the WebSocket connection
+          }
         } else {
           console.error(
             `❌ Client for task ID ${msg.taskId} not found or disconnected.`

@@ -9,7 +9,6 @@ const STORAGE = "http://localhost:9000";
 const codeMap = `
 import json
 from collections import Counter
-
 def task(text):
     words = text.split()
     counter = Counter(words)
@@ -18,14 +17,14 @@ def task(text):
 
 const codeReduce = `
 import json
-
 def task(text):
-    partial_results = json.loads(text)
+    if isinstance(text, str):
+        text = json.loads(text)
+    if isinstance(text, str):
+        text = json.loads(text)
     final_counts = {}
-
-    for word, counts in partial_results.items():
+    for word, counts in text.items():
         final_counts[word] = sum(counts)
-
     return json.dumps(final_counts)
 `;
 
@@ -34,9 +33,9 @@ const code = [codeMap, codeReduce];
 // Parameters
 const args = [
   `${STORAGE}/test/example1.txt`,
-  `${STORAGE}/test/example2.txt`,
-  `${STORAGE}/test/example3.txt`,
-  `${STORAGE}/test/example4.txt`,
+  //`${STORAGE}/test/example2.txt`,
+  //`${STORAGE}/test/example3.txt`,
+  //`${STORAGE}/test/example4.txt`,
 ];
 
 const maxTasks = args.length;
@@ -65,12 +64,11 @@ async function start() {
       try {
         const { arg, status, result } = JSON.parse(data.toString());
         console.log(
-          `📦 Task [${arg}] executed. Status: ${status}. Result: ${result}`
+          `📦 Task ${taskId}:[${arg}] executed. Status: ${status}. Result: ${result}`
         );
 
         if (tasksExecuted >= maxTasks) {
-          console.log("Tasks executed.");
-          ws.close();
+          console.log("✅ All tasks executed.");
         }
       } catch (err) {
         console.error(
