@@ -1,8 +1,8 @@
 import axios from "axios";
 import WebSocket from "ws"; // Using ws client
 
-const HTTP_ORCH = "http://localhost:3000";
-const ORCHESTRATOR = "ws://localhost:3000";
+const HTTP_ORCH = "http://orchestrator:3000";
+const ORCHESTRATOR = "ws://orchestrator:3000";
 const STORAGE = "http://localhost:9000";
 
 // Code

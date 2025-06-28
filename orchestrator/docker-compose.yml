@@ -1,0 +1,35 @@
+services:
+  minio:
+    image: quay.io/minio/minio
+    container_name: minio-orchestrator
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    ports:
+      - "9002:9000"  # Access MinIO from host via localhost:9000
+      - "9003:9001"  # Access MinIO Console from host via localhost:9001
+    # volumes:
+    #   - minio_data:/data
+    networks:
+      - shared_network
+
+  orchestrator:
+    build: ./
+    working_dir: /app
+    volumes:
+      - ./:/app
+    ports:
+      - "3000:3000"  # Access Orchestrator from host via localhost:3000
+    #command: ["node", "--watch", "orchestrator.mjs"]
+    depends_on:
+      - minio
+    networks:
+      - shared_network
+
+networks:
+  shared_network:
+    external: true
+
+# volumes:
+#   minio_data:

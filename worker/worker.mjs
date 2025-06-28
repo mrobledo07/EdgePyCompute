@@ -5,6 +5,7 @@ import * as Minio from "minio";
 
 const ORCHESTRATOR = "ws://localhost:3000"; // WS endpoint base
 const HTTP_ORCH = "http://localhost:3000";
+const STORAGE = "http://localhost:9002"; // Minio HTTP endpoint orchestrator
 
 let minioClient;
 let host;
@@ -41,13 +42,16 @@ async function getTextFromMinio(fileUrl, offset = -1, numMappers = -1) {
     // If offset is provided, get a partial object
 
     const stat = await minioClient.statObject(bucket, objectName);
-    const length = stat.size / numMappers;
-    stream = await minioClient.getPartialObject(
-      bucket,
-      objectName,
-      offset,
-      length
-    );
+    const totalSize = stat.size;
+    const chunkSize = Math.floor(totalSize / numMappers);
+    const start = offset * chunkSize;
+    let end = (offset + 1) * chunkSize - 1;
+
+    // Para el último chunk asegúrate de que end no supere el total
+    if (offset === numMappers - 1) {
+      end = totalSize - 1;
+    }
+    stream = await minioClient.getPartialObject(bucket, objectName, start, end);
   }
   return new Promise((res, rej) => {
     let data = "";
@@ -77,7 +81,7 @@ async function getPartialObjectMinio(task) {
       "Invalid task received. Missing offset or num of mappers for MAPPER partial object."
     );
   }
-
+  console.log(`🔍 Getting TASK ARG ${task.arg}}`);
   const text = await getTextFromMinio(task.arg, offset, numMappers);
   return text;
 }
@@ -125,10 +129,10 @@ async function getSerializedMappersResults(results) {
 }
 
 async function setSerializedMapperResult(task, result) {
-  const resultURL = `http://${host}:${port}/${task.taskId}/${workerId}/${task.numWorker}.txt`;
+  const resultURL = `${STORAGE}/${task.taskId}/${workerId}/${task.numWorker}.txt`;
   const resultJSON = JSON.stringify(result);
   const { bucket, objectName } = obtainBucketAndObjectName(resultURL);
-  // minioClient is created already in getTextFromMinio
+  createMinioClient(resultURL);
   try {
     await minioClient.makeBucket(bucket, "us-east-1");
   } catch (e) {
