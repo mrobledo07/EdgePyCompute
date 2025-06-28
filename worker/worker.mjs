@@ -90,18 +90,32 @@ async function getSerializedMappersResults(results) {
 
   const resultJSON = {};
   for (const result of results) {
-    const partialResult = await getTextFromMinio(result);
-    console.log("Reducer input:", partialResult);
+    let partialResult = await getTextFromMinio(result);
+    // Make sure the result is a string
+    if (typeof partialResult !== "string") {
+      partialResult = partialResult.toString("utf-8");
+    }
 
-    const deserializedJSONResult = JSON.parse(partialResult);
-    console.log("Deserialized JSON result:", deserializedJSONResult);
-    for (const word in deserializedJSONResult) {
-      const count = deserializedJSONResult[word];
-      if (!resultJSON[word]) resultJSON[word] = [count];
-      else resultJSON[word].push(count);
+    // Double-check that the partial result is a valid JSON string
+    let parsed = JSON.parse(partialResult);
+    if (typeof parsed === "string") {
+      parsed = JSON.parse(parsed);
+    }
+
+    if (typeof parsed !== "object" || parsed === null) {
+      throw new Error("Parsed JSON is not a valid object");
+    }
+
+    console.log("✅ Partial result JSON:", parsed);
+
+    for (const key in parsed) {
+      if (!resultJSON[key]) {
+        resultJSON[key] = [];
+      }
+      resultJSON[key].push(parsed[key]);
     }
   }
-  console.log("Final result JSON for REDUCER:", resultJSON);
+  //console.log("🔍 Mappers results aggregated:", resultJSON);
   console.log(
     "🔍 Returning serialized results for REDUCER:",
     JSON.stringify(resultJSON)
@@ -163,9 +177,16 @@ async function executeCodeAndSendResult(task) {
       text = await getTextFromMinio(task.arg);
     }
 
+    let textLiteral;
+    if (task.type === "reduce") {
+      textLiteral = text;
+    } else {
+      textLiteral = `'''${text}'''`;
+    }
+
     const pyScript = `
       ${task.code}
-text = '''${text}'''
+text = ${textLiteral}
 try:
     result = task(text)
 except Exception as e:

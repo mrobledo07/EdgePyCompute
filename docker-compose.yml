@@ -11,8 +11,8 @@ services:
     ports:
       - "9000:9000"  # Access MinIO from host via localhost:9000
       - "9001:9001"  # Access MinIO Console from host via localhost:9001
-    volumes:
-      - minio_data:/data
+    # volumes:
+    #   - minio_data:/data
 
   minio-init:
     build: ./minio-init
@@ -21,8 +21,8 @@ services:
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
-    volumes:
-      - minio_data:/data
+    #volumes:
+     # - minio_data:/data
 
   orchestrator:
     build: ./orchestrator
@@ -35,5 +35,5 @@ services:
     depends_on:
       - minio
 
-volumes:
-  minio_data:
+# volumes:
+#   minio_data:
