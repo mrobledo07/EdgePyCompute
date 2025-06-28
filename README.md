@@ -16,15 +16,23 @@ By compiling Python code to WebAssembly (via Pyodide), the system allows seamles
    - [Docker](https://docs.docker.com/get-docker/)
    - [Docker Compose](https://docs.docker.com/compose/install/)
 2. Clone the repository
-3. Execute the following command to build the Docker image and start the containers:
+3. Execute the following commands:
+
+3.1. This command will build the Docker images for the orchestrator and the minio object storage.:
 ```bash
-docker-compose up
+cd orchestrator/
+sudo docker-compose up
 ```
+
+3.2. This command will build the Docker image for the client and start the client object storage:
+```bash
+cd client/
+sudo docker-compose up
+```
+
 4. Execute test.sh
 ```bash
-./test.sh
+bash test_mapreduce.sh
 ```
-or
-```bash
-bash test.sh
-```
+
+Maybe you would want to execute test_mapreduce.sh before the client docker-compose up so you have all the workers available to execute your mapreduce job.
