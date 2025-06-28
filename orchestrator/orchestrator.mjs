@@ -70,14 +70,14 @@ const dispatchMappers = (task) => {
   let reducer_code = task.code[1];
   console.log("MAPPER CODE:", mapper_code);
   console.log("REDUCER CODE:", reducer_code);
-  task.type = "map";
-  task.code = mapper_code; // Use the first code for mappers
   if (availableWorkers == 0) {
     console.log(
       `🕒 No available workers. Job for MAPPERS "${task.arg}:${task.taskId}" queued.`
     );
     taskQueue.push(task);
   } else {
+    task.type = "map";
+    task.code = mapper_code; // Use the first code for mappers
     task.numMappers = availableWorkers.length;
     for (const worker of availableWorkers) {
       task.numWorker = worker.worker_num;
