@@ -81,7 +81,7 @@ async function getPartialObjectMinio(task) {
       "Invalid task received. Missing offset or num of mappers for MAPPER partial object."
     );
   }
-  console.log(`🔍 Getting TASK ARG ${task.arg}}`);
+  console.log(`🔍 Getting TASK ARG ${task.arg}`);
   const text = await getTextFromMinio(task.arg, offset, numMappers);
   return text;
 }
@@ -92,7 +92,7 @@ async function getSerializedMappersResults(results) {
       "Invalid task received. Missing array of results for REDUCER."
     );
 
-  const resultJSON = {};
+  const b64List = [];
   for (const result of results) {
     let partialResult = await getTextFromMinio(result);
     // Make sure the result is a string
@@ -100,32 +100,15 @@ async function getSerializedMappersResults(results) {
       partialResult = partialResult.toString("utf-8");
     }
 
-    // Double-check that the partial result is a valid JSON string
-    let parsed = JSON.parse(partialResult);
-    if (typeof parsed === "string") {
-      parsed = JSON.parse(parsed);
-    }
-
-    if (typeof parsed !== "object" || parsed === null) {
-      throw new Error("Parsed JSON is not a valid object");
-    }
-
-    console.log("✅ Partial result JSON:", parsed);
-
-    for (const key in parsed) {
-      if (!resultJSON[key]) {
-        resultJSON[key] = [];
-      }
-      resultJSON[key].push(parsed[key]);
-    }
+    b64List.push(partialResult);
   }
   //console.log("🔍 Mappers results aggregated:", resultJSON);
   console.log(
     "🔍 Returning serialized results for REDUCER:",
-    JSON.stringify(resultJSON)
+    JSON.stringify(b64List)
   );
   // Return the
-  return JSON.stringify(resultJSON);
+  return JSON.stringify(b64List);
 }
 
 async function setSerializedMapperResult(task, result) {

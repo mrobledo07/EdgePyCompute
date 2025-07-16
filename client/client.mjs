@@ -7,25 +7,40 @@ const STORAGE = "http://localhost:9000";
 
 // Code
 const codeMap = `
-import json
+import pickle
+import base64
 from collections import Counter
 def task(text):
     words = text.split()
     counter = Counter(words)
-    return json.dumps(counter)
+    # Serialize to bytes using pickle
+    serialized = pickle.dumps(counter)
+    # Encode as base64 string for compatibility with JS
+    encoded = base64.b64encode(serialized).decode('utf-8')
+    return encoded
 `;
 
 const codeReduce = `
 import json
+import pickle
+import base64
+from collections import Counter
 def task(text):
     if isinstance(text, str):
-        text = json.loads(text)
-    if isinstance(text, str):
-        text = json.loads(text)
-    final_counts = {}
-    for word, counts in text.items():
-        final_counts[word] = sum(counts)
-    return json.dumps(final_counts)
+        b64_list = json.loads(text)
+    else:
+        b64_list = text
+    final_counter = Counter()
+    for b64 in b64_list:
+        # 1) convert Base64 → bytes
+        raw = base64.b64decode(b64)
+        # 2) unpickle → Counter parcial
+        part = pickle.loads(raw)
+        # 3) reduce → Counter final
+        final_counter.update(part)
+    # 4) (opcional) serialize again to Pickle+Base64
+    # serialized = pickle.dumps(final_counter)
+    return json.dumps(final_counter)
 `;
 
 const code = [codeMap, codeReduce];

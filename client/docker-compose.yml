@@ -16,6 +16,8 @@ services:
 
   client:
     build: ./
+    volumes:
+      - ./:/app   # mount client directory in /app
     depends_on:
       - minio
     environment:

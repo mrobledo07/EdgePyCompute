@@ -1,6 +1,15 @@
 #!/bin/bash
-# Run worker scripts in parallel (4 instances)
-for i in {1..4}; do
+
+# Check if a number was passed as argument
+if [ -z "$1" ]; then
+    echo "Usage: ./$0 <number_of_workers>"
+    exit 1
+fi
+
+NUM_WORKERS=$1
+
+# Run worker scripts in parallel
+for ((i=1; i<=NUM_WORKERS; i++)); do
     node worker/worker.mjs &
 done
 
