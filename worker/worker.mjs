@@ -67,6 +67,40 @@ let pyodide;
 async function initPy() {
   console.log("⏳ Loading Pyodide...");
   pyodide = await loadPyodide();
+  await pyodide.runPythonAsync(`
+# pyedgecompute.py
+import pickle, base64, json
+from collections import Counter
+
+def write_partition(text):
+    words = text.split()
+    counter = Counter(words)
+    serialized = pickle.dumps(counter)
+    return base64.b64encode(serialized).decode('utf-8')
+
+def read_partition(text):
+    if isinstance(text, str):
+        b64_list = json.loads(text)
+    else:
+        b64_list = text
+    final_counter = Counter()
+    for b64 in b64_list:
+        raw = base64.b64decode(b64)
+        part = pickle.loads(raw)
+        final_counter.update(part)
+    return json.dumps(final_counter)
+
+
+# Inject module
+import types
+pyedgecompute = types.ModuleType("pyedgecompute")
+pyedgecompute.write_partition = write_partition
+pyedgecompute.read_partition = read_partition
+
+
+import sys
+sys.modules["pyedgecompute"] = pyedgecompute
+`);
   console.log("✅ Pyodide ready");
 }
 
