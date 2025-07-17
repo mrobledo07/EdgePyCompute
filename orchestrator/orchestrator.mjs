@@ -155,22 +155,34 @@ const dispatchReducers = (task) => {
     );
     return false;
   } else {
-    const numMappers = task.numMappers;
-    const args_reducer = [];
+    // task.arg is in the format [ [ “…_0.txt”, “…_1.txt”, … ],  // mapper 0
+    //                         [ “…_0.txt”, “…_1.txt”, … ],     // mapper 1
+    //                         …                          ]    // mapper m
 
+    const argsMatrix = task.arg; // do not touch
+    const numMappers = argsMatrix.length;
     for (let r = 0; r < numReducers; r++) {
+      // 1) Construct the arguments for the r-th reducer
+      const args_reducer = [];
       for (let m = 0; m < numMappers; m++) {
-        args_reducer.push(task.arg[m][r]);
+        // search for the file that ends with _r.txt
+        const row = argsMatrix[m];
+        const fileForThisReducer = row.find((s) => s.endsWith(`_${r}.txt`));
+        if (!fileForThisReducer) {
+          throw new Error(`Did not find file for reducer ${r} in mapper ${m}.`);
+        }
+        args_reducer.push(fileForThisReducer);
       }
-    }
 
-    let i = 0;
-    for (const worker of availableWorkers) {
-      if (i == numReducers) break;
-      task.arg = args_reducer;
-      task.numWorker = worker.worker_num;
-      reserveWorkerAndSendTask(worker, task);
-      i += 1;
+      // 2) Assign the task to the worker rth available worker
+      const worker = availableWorkers[r];
+      const reducerTask = {
+        ...task, // clone the task
+        arg: args_reducer,
+        numWorker: worker.worker_num,
+      };
+
+      reserveWorkerAndSendTask(worker, reducerTask);
     }
     return true;
   }

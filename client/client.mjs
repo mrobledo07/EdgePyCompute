@@ -38,17 +38,20 @@ def task(bytes):
         data=parsed_data,
         num_partitions=${NUMREDUCERS}
     )
-    serialized_partitions = [serialize_partition(p) for p in partitioned_data]
+    serialized_partitions = [serialize_partition(p) for p in partitioned_data.values()]
     return serialized_partitions
 `;
 
 const codeReduceTerasort = `
 from pyedgecompute import deserialize_partitions, concat_partitions, sort_dataframe, serialize_partition
 def task(bytes):
-    parts = deserialize_partitions(byte_list)
+    parts = deserialize_partitions(bytes)
     concatenated_data = concat_partitions(parts)
     sorted_data = sort_dataframe(concatenated_data)
-    return serialize_partition(sorted_data)
+    serialized_partition = serialize_partition(sorted_data)
+    # csv = sorted_data.to_csv(index=False, header=False)
+    # my_json = sorted_data.to_json(orient="records", lines=True)
+    return serialized_partition
 `;
 
 const code = "";
@@ -102,7 +105,7 @@ const mapReduceTerasort = {
 
 const maxTasksWordcount = argsMapReduceWordcount.length;
 const maxTasksTerasort = argsMapReduceTerasort.length;
-const maxTasks = maxTasksTerasort; // Change to maxTasksWordcount for wordcount
+const maxTasks = maxTasksWordcount; // Change to maxTasksWordcount for wordcount
 let tasksExecuted = 0;
 let ws;
 
@@ -110,7 +113,7 @@ async function start() {
   try {
     const res = await axios.post(
       `${HTTP_ORCH}/register_task`,
-      mapReduceTerasort
+      mapReduceWordcount
     );
 
     const taskId = res.data.task_id;

@@ -51,7 +51,7 @@ async function getTextFromMinio(fileUrl, offset = -1, numMappers = -1) {
   return new Promise((res, rej) => {
     const chunks = [];
     stream.on("data", (c) => chunks.push(c));
-    stream.on("end", () => res(chunks));
+    stream.on("end", () => res(Buffer.concat(chunks)));
     stream.on("error", (e) => rej(e));
   });
 }
@@ -67,6 +67,8 @@ async function initPy() {
 # pyedgecompute.py
 import pickle, base64, json
 import pandas as pd
+import numpy as np
+
 
 # CODE MAPREDUCE
 def serialize_partition(result):
@@ -83,7 +85,7 @@ def deserialize_partitions(b64_list):
     return parts
 
 def deserialize_input_string(bytes_string):
-    # string_data = bytes_string.decode('utf-8')
+    string_data = bytes_string.decode('utf-8')
     return bytes_string
 
 # CODE TERASORT
@@ -98,6 +100,37 @@ def deserialize_input_terasort(data):
     df = pd.DataFrame(list(result.items()), columns=["0", "1"])
     result = df
     return result
+
+MIN_CHAR_ASCII = 32  # ' '
+MAX_CHAR_ASCII = 126 # '~'
+range_per_char = MAX_CHAR_ASCII - MIN_CHAR_ASCII
+base = range_per_char + 1
+
+def get_partition(line, num_partitions):
+
+    numerical_value = 0
+    max_numerical_value = 0
+    for i in range(8):
+        if i < len(line):
+            normalized_char_val = ord(line[i]) - MIN_CHAR_ASCII
+            numerical_value = numerical_value * base + normalized_char_val
+        else:
+            normalized_char_val = 0
+            numerical_value = numerical_value * base + normalized_char_val
+
+    for i in range(8):
+        max_numerical_value = max_numerical_value * base + range_per_char
+
+    if max_numerical_value == 0:
+        return 0
+
+    normalized_value = numerical_value / max_numerical_value
+    partition = int(normalized_value * num_partitions)
+
+    if partition >= num_partitions:
+        partition = num_partitions - 1
+
+    return partition
 
 def partition_data(data, num_partitions):
     partitions = {i: None for i in range(num_partitions)}
@@ -169,13 +202,7 @@ async function getSerializedMappersResults(results) {
   const b64List = [];
   for (const result of results) {
     let partialResult = await getTextFromMinio(result);
-    // Make sure the result is a string
-    if (typeof partialResult !== "string") {
-      partialResult = partialResult.toString("utf-8");
-    }
-
     console.log("🔍 First partial:", partialResult);
-
     b64List.push(JSON.parse(partialResult));
   }
   //console.log("🔍 Mappers results aggregated:", resultJSON);
@@ -185,6 +212,20 @@ async function getSerializedMappersResults(results) {
   );
   // Return the
   return JSON.stringify(b64List);
+}
+
+/**
+ * Returns true if the object is a PyProxy object.
+ * This is used to check if the object is a Pyodide proxy object.
+ * @param {Object} obj - The object to check.
+ * @returns {boolean} - True if the object is a PyProxy object, false otherwise
+ */
+function isPyProxy(obj) {
+  return (
+    obj != null &&
+    typeof obj.toJs === "function" &&
+    typeof obj.destroy === "function"
+  );
 }
 
 async function setSerializedMapperResult(task, result) {
@@ -202,11 +243,13 @@ async function setSerializedMapperResult(task, result) {
     console.log(`ℹ️ Bucket ${bucket} already exists, skipping creation.`);
   }
 
-  if (Array.isArray(result)) {
+  if (isPyProxy(result)) {
     // TERASORT REDUCER: result is an array
+    const jsArray = result.toJs();
+    result.destroy();
     const urls = [];
-    for (let i = 0; i < result.length; i++) {
-      const reducerResult = result[i];
+    for (let i = 0; i < jsArray.length; i++) {
+      const reducerResult = jsArray[i];
       const objectName = `${task.numWorker}_${i}.txt`;
       const resultJSON = JSON.stringify(reducerResult);
 
@@ -275,9 +318,21 @@ async function executeCodeAndSendResult(task) {
       bytes = await getTextFromMinio(task.arg);
     }
 
+    let rawBytesLine;
+    if (task.type === "reduceterasort" || task.type === "reducewordcount") {
+      // Reducer: arg es un JSON‐string con ["b64part1","b64part2",...]
+      // Pasamos esa cadena TEXTUAL directamente a Python
+      let bytes_string = bytes.toString("utf-8");
+      rawBytesLine = `raw_bytes = ${JSON.stringify(bytes_string)}`;
+    } else {
+      // Map: bytes es un Buffer → lo pasamos como Base64 y DECODIFICAMOS en Python
+      const b64 = bytes.toString("base64");
+      rawBytesLine = `raw_bytes = base64.b64decode(${JSON.stringify(b64)})`;
+    }
+
     const pyScript = `
       ${task.code}
-raw_bytes = '''${bytes}'''
+${rawBytesLine}
 try:
     result = task(raw_bytes)
 except Exception as e:
@@ -289,7 +344,7 @@ result
     );
     //sleep for 3 seconds to simulate a long task
     // await new Promise((resolve) => setTimeout(resolve, 3000));
-    const result = await pyodide.runPythonAsync(pyScript);
+    let result = await pyodide.runPythonAsync(pyScript);
     console.log(`✔️ Completed ${task.arg}:${task.taskId}:`, result);
 
     if (task.type === "mapwordcount" || task.type === "mapterasort") {
@@ -301,6 +356,18 @@ result
           taskId: task.taskId,
           status: "done",
           result: resultURL,
+        })
+      );
+    } else if (task.type === "reduceterasort") {
+      /* Code if we want to change output of reduce terasort (now is pickle and base64)*/
+      // result = Buffer.from(result, "base64").toString("utf-8"); <-- Only if result is a CSV
+      // result = JSON.parse(result);
+      ws.send(
+        JSON.stringify({
+          arg: task.arg,
+          taskId: task.taskId,
+          status: "done",
+          result,
         })
       );
     } else {
