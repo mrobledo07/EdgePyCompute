@@ -77,7 +77,6 @@ def serialize_partition(result):
 
 def deserialize_partitions(b64_list):
     parts = []
-    # b64_list = json.loads(b64_list)
     for b64 in b64_list:
         raw_bytes = base64.b64decode(b64)
         part = pickle.loads(raw_bytes)
@@ -90,7 +89,6 @@ def deserialize_input_string(bytes_string):
 
 # CODE TERASORT
 def deserialize_input_terasort(data):
-    # data = data.decode('utf-8')
     lines = data.split(b'\\n')
     result = {}
     for line in lines:
