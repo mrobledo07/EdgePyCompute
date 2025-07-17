@@ -317,7 +317,7 @@ wss.on("connection", (ws, req) => {
 
       // If it is a mapreduce task, decrease counter and do not send result to client
       let infoTask = mapreduceTasks.get(msg.taskId);
-      if (infoTask) {
+      if (infoTask && infoTask.numMappers > 0) {
         console.log("CODE REDUCE:", infoTask.codeReduce);
         infoTask.numMappers--;
         infoTask.results.push(msg.result);

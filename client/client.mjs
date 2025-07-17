@@ -102,7 +102,7 @@ const mapReduceTerasort = {
 
 const maxTasksWordcount = argsMapReduceWordcount.length;
 const maxTasksTerasort = argsMapReduceTerasort.length;
-const maxTasks = maxTasksWordcount; // Change to maxTasksWordcount for wordcount
+const maxTasks = maxTasksTerasort; // Change to maxTasksWordcount for wordcount
 let tasksExecuted = 0;
 let ws;
 
@@ -110,7 +110,7 @@ async function start() {
   try {
     const res = await axios.post(
       `${HTTP_ORCH}/register_task`,
-      mapReduceWordcount
+      mapReduceTerasort
     );
 
     const taskId = res.data.task_id;

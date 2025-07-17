@@ -275,16 +275,9 @@ async function executeCodeAndSendResult(task) {
       bytes = await getTextFromMinio(task.arg);
     }
 
-    let bytesLiteral;
-    if (task.type === "reduce") {
-      bytesLiteral = bytes;
-    } else {
-      bytesLiteral = `'''${bytes}'''`;
-    }
-
     const pyScript = `
       ${task.code}
-raw_bytes = ${bytesLiteral}
+raw_bytes = '''${bytes}'''
 try:
     result = task(raw_bytes)
 except Exception as e:
