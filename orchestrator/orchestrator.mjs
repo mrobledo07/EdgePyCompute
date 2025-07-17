@@ -65,30 +65,79 @@ const getWorkersAvailable = () => {
 
 const dispatchMappers = (task) => {
   const availableWorkers = getWorkersAvailable();
+
   console.log("TRYING TO DISPATCH MAPPERS CODE,", task.code);
   let mapper_code = task.code[0];
   let reducer_code = task.code[1];
   console.log("MAPPER CODE:", mapper_code);
   console.log("REDUCER CODE:", reducer_code);
-  if (availableWorkers == 0) {
+  const nummappers = task.arg[1];
+  if (nummappers > availableWorkers) {
     console.log(
       `🕒 No available workers. Job for MAPPERS "${task.arg}:${task.taskId}" queued.`
     );
     taskQueue.push(task);
   } else {
-    task.type = "map";
+    /* In our implementation, we do not have partitioning and shuffling for mapreduce wordcount
+    so we restrict the number of reducers to 1 */
+    if (task.type == "mapreducewordcount") {
+      task.type = "mapwordcount";
+      task.numReducers = 1;
+    } else {
+      const numReducers = task.arg[2];
+      task.numReducers = numReducers;
+      task.type = "mapterasort";
+    }
     task.code = mapper_code; // Use the first code for mappers
-    task.numMappers = availableWorkers.length;
+    task.numMappers = nummappers;
+    task.arg = task.arg[0];
+    let i = 0;
     for (const worker of availableWorkers) {
+      if (i == nummappers) break;
       task.numWorker = worker.worker_num;
       reserveWorkerAndSendTask(worker, task);
+      i += 1;
     }
     const infoMapReduce = {
       numMappers: task.numMappers,
+      numReducers: task.numReducers,
       codeReduce: reducer_code,
+      type: task.type,
       results: [],
     };
     mapreduceTasks.set(task.taskId, infoMapReduce);
+  }
+};
+
+const dispatchReducers = (task) => {
+  const availableWorkers = getWorkersAvailable();
+  console.log("TRYING TO DISPATCH REDUCERS CODE,", task.code);
+  const reducer_code = task.code;
+  console.log("REDUCER CODE:", reducer_code);
+  const numReducers = task.numReducers;
+  if (numReducers > availableWorkers) {
+    console.log(
+      `🕒 No available workers. Job for REDUCERS TERASORT "${task.arg}:${task.taskId}" queued.`
+    );
+    taskQueue.push(task);
+  } else {
+    const numMappers = task.numMappers;
+    const args_reducer = [];
+
+    for (let r = 0; r < numReducers; r++) {
+      for (let m = 0; m < numMappers; m++) {
+        args_reducer.push(task.arg[m][r]);
+      }
+    }
+
+    let i = 0;
+    for (const worker of availableWorkers) {
+      if (i == numReducers) break;
+      task.arg = args_reducer;
+      task.numWorker = worker.worker_num;
+      reserveWorkerAndSendTask(worker, task);
+      i += 1;
+    }
   }
 };
 
@@ -98,8 +147,13 @@ const dispatchMappers = (task) => {
  * @param {object} task - The task object { code, arg, taskId }.
  */
 const dispatchTask = (task) => {
-  if (task.type === "mapreduce") {
+  if (task.type === "mapreducewordcount" || task.type === "mapreduceterasort") {
     dispatchMappers(task);
+    return;
+  }
+
+  if (task.type === "reduceterasort") {
+    dispatchReducers(task);
     return;
   }
 
@@ -246,18 +300,44 @@ wss.on("connection", (ws, req) => {
         );
         //
         let taskId = msg.taskId;
-        let type = "reduce";
-        mapreduceTasks.delete(taskId);
+        let numReducers = infoTask.numReducers;
+        let numMappers = infoTask.numMappers;
+        let type;
+        if (infoTask.type === "mapwordcount") {
+          type = "reducewordcount";
+        } else {
+          type = "reduceterasort";
+        }
+
+        infoTask.numMappers = -1; // Mark mappers as completed
+        mapreduceTasks.set(taskId, infoTask);
         let reduceTask = {
           code: infoTask.codeReduce,
           arg: infoTask.results,
           taskId,
           type,
+          numReducers,
+          numMappers,
         };
         console.log(
           `📦 Dispatching reduce task for ${taskId} with results ${infoTask.results} and code ${infoTask.codeReduce}`
         );
         dispatchTask(reduceTask);
+      }
+
+      if (infoTask && infoTask.numMappers == -1) {
+        infoTask.numReducers--;
+        if (infoTask.numReducers == 0) {
+          mapreduceTasks.delete(msg.taskId);
+          console.log(
+            `✅ All reducers for task ${msg.taskId} completed. Task finished.`
+          );
+        } else {
+          console.log(
+            `📦 Worker ${workerId} completed a reducer for task ${msg.taskId}.
+            Remaining reducers: ${infoTask.numReducers}`
+          );
+        }
       }
 
       // Forward result to the client

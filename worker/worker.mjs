@@ -8,9 +8,6 @@ const HTTP_ORCH = "http://localhost:3000";
 const STORAGE = "http://localhost:9002"; // Minio HTTP endpoint orchestrator
 
 let minioClient;
-let host;
-let port;
-
 const createMinioClient = (fileURL) => {
   const parsed = new URL(fileURL);
   minioClient = new Minio.Client({
@@ -20,8 +17,6 @@ const createMinioClient = (fileURL) => {
     accessKey: "minioadmin",
     secretKey: "minioadmin",
   });
-  host = parsed.hostname;
-  port = parsed.port;
 };
 
 const obtainBucketAndObjectName = (fileUrl) => {
@@ -47,16 +42,16 @@ async function getTextFromMinio(fileUrl, offset = -1, numMappers = -1) {
     const start = offset * chunkSize;
     let end = (offset + 1) * chunkSize - 1;
 
-    // Para el último chunk asegúrate de que end no supere el total
+    // Assign the last chunk to the last mapper
     if (offset === numMappers - 1) {
       end = totalSize - 1;
     }
     stream = await minioClient.getPartialObject(bucket, objectName, start, end);
   }
   return new Promise((res, rej) => {
-    let data = "";
-    stream.on("data", (c) => (data += c.toString()));
-    stream.on("end", () => res(data));
+    const chunks = [];
+    stream.on("data", (c) => chunks.push(c));
+    stream.on("end", () => res(chunks));
     stream.on("error", (e) => rej(e));
   });
 }
@@ -67,35 +62,80 @@ let pyodide;
 async function initPy() {
   console.log("⏳ Loading Pyodide...");
   pyodide = await loadPyodide();
+  await pyodide.loadPackage("pandas");
   await pyodide.runPythonAsync(`
 # pyedgecompute.py
 import pickle, base64, json
-from collections import Counter
+import pandas as pd
 
-def write_partition(text):
-    words = text.split()
-    counter = Counter(words)
-    serialized = pickle.dumps(counter)
-    return base64.b64encode(serialized).decode('utf-8')
+# CODE MAPREDUCE
+def serialize_partition(result):
+    raw = pickle.dumps(result)
+    return base64.b64encode(raw).decode('utf-8')
 
-def read_partition(text):
-    if isinstance(text, str):
-        b64_list = json.loads(text)
-    else:
-        b64_list = text
-    final_counter = Counter()
+def deserialize_partitions(b64_list):
+    parts = []
+    b64_list = json.loads(b64_list)
     for b64 in b64_list:
-        raw = base64.b64decode(b64)
-        part = pickle.loads(raw)
-        final_counter.update(part)
-    return json.dumps(final_counter)
+        raw_bytes = base64.b64decode(b64)
+        part = pickle.loads(raw_bytes)
+        parts.append(part)
+    return parts
 
+def deserialize_input_string(bytes_string):
+    # string_data = bytes_string.decode('utf-8')
+    return bytes_string
+
+# CODE TERASORT
+def deserialize_input_terasort(data):
+    lines = data.split(b'\\n')
+    result = {}
+    for line in lines:
+        if len(line) >= 98:
+            key = line[:10].decode('utf-8', errors='ignore')
+            value = line[12:98].decode('utf-8', errors='ignore')
+            result[key] = value
+    df = pd.DataFrame(list(result.items()), columns=["0", "1"])
+    result = df
+    return result
+
+def partition_data(data, num_partitions):
+    partitions = {i: None for i in range(num_partitions)}
+    partition_indices = np.empty(len(data), dtype=np.int32)
+
+    for idx, key in enumerate(data["0"]):
+        partition_indices[idx] = get_partition(key, num_partitions)
+
+    for i in range(num_partitions):
+        indices = np.where(partition_indices == i)[0]
+        if indices.size > 0:
+            partitions[i] = data.iloc[indices].reset_index(drop=True)
+        else:
+            partitions[i] = pd.DataFrame(columns=data.columns)
+
+    return partitions
+
+def concat_partitions(partition_list):
+
+    if not partition_list:
+        return pd.DataFrame(columns=["0", "1"])
+
+    return pd.concat(partition_list, ignore_index=True)
+
+def sort_dataframe(df):
+
+    return df.sort_values(by=["0"]).reset_index(drop=True)
 
 # Inject module
 import types
 pyedgecompute = types.ModuleType("pyedgecompute")
-pyedgecompute.write_partition = write_partition
-pyedgecompute.read_partition = read_partition
+pyedgecompute.serialize_partition = serialize_partition
+pyedgecompute.deserialize_partitions = deserialize_partitions
+pyedgecompute.deserialize_input_string = deserialize_input_string
+pyedgecompute.deserialize_input_terasort = deserialize_input_terasort
+pyedgecompute.partition_data = partition_data
+pyedgecompute.concat_partitions = concat_partitions
+pyedgecompute.sort_dataframe = sort_dataframe
 
 
 import sys
@@ -134,7 +174,9 @@ async function getSerializedMappersResults(results) {
       partialResult = partialResult.toString("utf-8");
     }
 
-    b64List.push(partialResult);
+    console.log("🔍 First partial:", partialResult);
+
+    b64List.push(JSON.parse(partialResult));
   }
   //console.log("🔍 Mappers results aggregated:", resultJSON);
   console.log(
@@ -146,10 +188,10 @@ async function getSerializedMappersResults(results) {
 }
 
 async function setSerializedMapperResult(task, result) {
-  const resultURL = `${STORAGE}/${task.taskId}/${workerId}/${task.numWorker}.txt`;
-  const resultJSON = JSON.stringify(result);
-  const { bucket, objectName } = obtainBucketAndObjectName(resultURL);
-  createMinioClient(resultURL);
+  const basePath = `${STORAGE}/${task.taskId}/${workerId}`;
+  createMinioClient(basePath);
+  const { bucket } = obtainBucketAndObjectName(basePath);
+
   try {
     await minioClient.makeBucket(bucket, "us-east-1");
   } catch (e) {
@@ -159,57 +201,92 @@ async function setSerializedMapperResult(task, result) {
     }
     console.log(`ℹ️ Bucket ${bucket} already exists, skipping creation.`);
   }
-  console.log(`📦 Storing result in Minio: ${resultURL}`);
-  // Store the result in Minio
-  try {
-    await minioClient.putObject(
-      bucket,
-      objectName,
-      Buffer.from(resultJSON),
-      resultJSON.length,
-      "application/json"
-    );
-  } catch (e) {
-    console.error(`❌ Error storing result in Minio:`, e.message);
-    throw e;
+
+  if (Array.isArray(result)) {
+    // TERASORT REDUCER: result is an array
+    const urls = [];
+    for (let i = 0; i < result.length; i++) {
+      const reducerResult = result[i];
+      const objectName = `${task.numWorker}_${i}.txt`;
+      const resultJSON = JSON.stringify(reducerResult);
+
+      console.log(
+        `📦 Storing reducer result in Minio: ${basePath}/${objectName}`
+      );
+      try {
+        await minioClient.putObject(
+          bucket,
+          `${workerId}/${objectName}`,
+          Buffer.from(resultJSON),
+          resultJSON.length,
+          "application/json"
+        );
+        urls.push(`${basePath}/${objectName}`);
+      } catch (e) {
+        console.error(`❌ Error storing reducer result [${i}]:`, e.message);
+        throw e;
+      }
+    }
+    return urls; // Optional: returns all URLs
+  } else {
+    // NORMAL CASE
+    const objectName = `${task.numWorker}.txt`;
+    const resultJSON = JSON.stringify(result);
+
+    console.log(`📦 Storing result in Minio: ${basePath}/${objectName}`);
+    try {
+      await minioClient.putObject(
+        bucket,
+        `${workerId}/${objectName}`,
+        Buffer.from(resultJSON),
+        resultJSON.length,
+        "application/json"
+      );
+      return `${basePath}/${objectName}`;
+    } catch (e) {
+      console.error(`❌ Error storing result in Minio:`, e.message);
+      throw e;
+    }
   }
-  return resultURL;
 }
 
 async function executeCodeAndSendResult(task) {
   try {
-    let text;
-    if (task.type == "map") {
+    let bytes;
+    if (task.type === "mapwordcount" || task.type === "mapterasort") {
       console.log(
         `🔍 Getting partial object for MAPPER task ${task.arg}:${task.taskId}`
       );
       //
-      text = await getPartialObjectMinio(task);
-    } else if (task.type == "reduce") {
+      bytes = await getPartialObjectMinio(task);
+    } else if (
+      task.type === "reducewordcount" ||
+      task.type === "reduceterasort"
+    ) {
       console.log(
         `🔍 Getting serialized results for REDUCER task ${task.arg}:${task.taskId}`
       );
-      text = await getSerializedMappersResults(task.arg);
+      bytes = await getSerializedMappersResults(task.arg);
     } else {
       console.log(
         `🔍 Getting full object for task ${task.arg}:${task.taskId} (not
         map or reduce)`
       );
-      text = await getTextFromMinio(task.arg);
+      bytes = await getTextFromMinio(task.arg);
     }
 
-    let textLiteral;
+    let bytesLiteral;
     if (task.type === "reduce") {
-      textLiteral = text;
+      bytesLiteral = bytes;
     } else {
-      textLiteral = `'''${text}'''`;
+      bytesLiteral = `'''${bytes}'''`;
     }
 
     const pyScript = `
       ${task.code}
-text = ${textLiteral}
+raw_bytes = ${bytesLiteral}
 try:
-    result = task(text)
+    result = task(raw_bytes)
 except Exception as e:
     result = str(e)
 result
@@ -222,7 +299,7 @@ result
     const result = await pyodide.runPythonAsync(pyScript);
     console.log(`✔️ Completed ${task.arg}:${task.taskId}:`, result);
 
-    if (task.type == "map") {
+    if (task.type === "mapwordcount" || task.type === "mapterasort") {
       const resultURL = await setSerializedMapperResult(task, result);
       // Create resultUrl
       ws.send(

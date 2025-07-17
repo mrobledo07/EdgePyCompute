@@ -32,6 +32,7 @@ mc cp files/example1.txt myminio/test/
 mc cp files/example2.txt myminio/test/
 mc cp files/example3.txt myminio/test/
 mc cp files/example4.txt myminio/test/
+mc cp files/terasort-20m myminio/test/
 echo "📤 examples txt uploaded to the 'test' bucket"
 
 exec node --watch client.mjs
