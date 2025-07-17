@@ -1,4 +1,5 @@
 node_modules/
+worker/pyenv/
 
 # Intermediary data
 data/part*
