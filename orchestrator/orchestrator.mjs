@@ -41,9 +41,40 @@ const processTaskQueue = () => {
     workers.length > 0 &&
     workers[0].availableWorkers > 0
   ) {
+    const next = taskQueue[0]; // peek
+    // Intentamos despachar SIN sacarla aún
+    const canDispatch = (() => {
+      const numWorkers = getWorkersAvailable().length;
+      if (
+        next.type === "mapreducewordcount" ||
+        next.type === "mapreduceterasort"
+      ) {
+        console.log("TRYING TO DISPATCH MAPPERS");
+        console.log("NUM MAPPERS:", next.arg[1]);
+        console.log("AVAILABLE WORKERS:", numWorkers);
+        return numWorkers >= next.arg[1];
+      }
+      if (next.type === "reduceterasort") {
+        console.log("TRYING TO DISPATCH REDUCERS");
+        console.log("NUM REDUCERS:", next.numReducers);
+        console.log("AVAILABLE WORKERS:", numWorkers);
+        return numWorkers >= next.numReducers;
+      }
+      return workers[0].availableWorkers > 0;
+    })();
+
     console.log(
       `Processing queue. Tasks waiting: ${taskQueue.length}. Top worker availability: ${workers[0].availableWorkers}`
     );
+
+    if (!canDispatch) {
+      console.log(
+        `🕒 No available workers. Job "${next.arg}:${next.taskId}" queued.`
+      );
+      break;
+    } // No tenemos recursos → salimos del bucle
+
+    // Podemos despachar: ahora sí shift y dispatch
     const task = taskQueue.shift();
     dispatchTask(task);
   }
@@ -53,7 +84,7 @@ const getWorkersAvailable = () => {
   let availWorkers = [];
   let numWorkers = 0;
   for (const worker of workers) {
-    if (worker.availableWorkers == 0) return numWorkers;
+    if (worker.availableWorkers == 0) return availWorkers;
     for (let i = 0; i < worker.availableWorkers; i++) {
       worker.worker_num = numWorkers;
       availWorkers.push(worker);
@@ -72,11 +103,13 @@ const dispatchMappers = (task) => {
   console.log("MAPPER CODE:", mapper_code);
   console.log("REDUCER CODE:", reducer_code);
   const nummappers = task.arg[1];
-  if (nummappers > availableWorkers) {
+  console.log("NUM MAPPERS:", nummappers);
+  console.log("AVAILABLE WORKERS:", availableWorkers.length);
+  if (nummappers > availableWorkers.length) {
     console.log(
       `🕒 No available workers. Job for MAPPERS "${task.arg}:${task.taskId}" queued.`
     );
-    taskQueue.push(task);
+    return false;
   } else {
     /* In our implementation, we do not have partitioning and shuffling for mapreduce wordcount
     so we restrict the number of reducers to 1 */
@@ -106,6 +139,7 @@ const dispatchMappers = (task) => {
       results: [],
     };
     mapreduceTasks.set(task.taskId, infoMapReduce);
+    return true;
   }
 };
 
@@ -115,11 +149,11 @@ const dispatchReducers = (task) => {
   const reducer_code = task.code;
   console.log("REDUCER CODE:", reducer_code);
   const numReducers = task.numReducers;
-  if (numReducers > availableWorkers) {
+  if (numReducers > availableWorkers.length) {
     console.log(
       `🕒 No available workers. Job for REDUCERS TERASORT "${task.arg}:${task.taskId}" queued.`
     );
-    taskQueue.push(task);
+    return false;
   } else {
     const numMappers = task.numMappers;
     const args_reducer = [];
@@ -138,6 +172,7 @@ const dispatchReducers = (task) => {
       reserveWorkerAndSendTask(worker, task);
       i += 1;
     }
+    return true;
   }
 };
 
@@ -148,12 +183,14 @@ const dispatchReducers = (task) => {
  */
 const dispatchTask = (task) => {
   if (task.type === "mapreducewordcount" || task.type === "mapreduceterasort") {
-    dispatchMappers(task);
+    const ok = dispatchMappers(task);
+    if (!ok) taskQueue.push(task);
     return;
   }
 
   if (task.type === "reduceterasort") {
-    dispatchReducers(task);
+    const ok = dispatchReducers(task);
+    if (!ok) taskQueue.push(task);
     return;
   }
 

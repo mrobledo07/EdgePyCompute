@@ -5,8 +5,8 @@ const HTTP_ORCH = "http://orchestrator:3000";
 const ORCHESTRATOR = "ws://orchestrator:3000";
 const STORAGE = "http://localhost:9000";
 
-const NUMMAPPERS = 3;
-const NUMREDUCERS = 1;
+const NUMMAPPERS = 5;
+const NUMREDUCERS = 5;
 
 // Code
 const codeMapWordcount = `
@@ -102,7 +102,7 @@ const mapReduceTerasort = {
 
 const maxTasksWordcount = argsMapReduceWordcount.length;
 const maxTasksTerasort = argsMapReduceTerasort.length;
-const maxTasks = maxTasksTerasort; // Change to maxTasksWordcount for wordcount
+const maxTasks = maxTasksWordcount; // Change to maxTasksWordcount for wordcount
 let tasksExecuted = 0;
 let ws;
 
@@ -110,7 +110,7 @@ async function start() {
   try {
     const res = await axios.post(
       `${HTTP_ORCH}/register_task`,
-      mapReduceTerasort
+      mapReduceWordcount
     );
 
     const taskId = res.data.task_id;
