@@ -77,7 +77,7 @@ def serialize_partition(result):
 
 def deserialize_partitions(b64_list):
     parts = []
-    b64_list = json.loads(b64_list)
+    # b64_list = json.loads(b64_list)
     for b64 in b64_list:
         raw_bytes = base64.b64decode(b64)
         part = pickle.loads(raw_bytes)
@@ -86,10 +86,11 @@ def deserialize_partitions(b64_list):
 
 def deserialize_input_string(bytes_string):
     string_data = bytes_string.decode('utf-8')
-    return bytes_string
+    return string_data
 
 # CODE TERASORT
 def deserialize_input_terasort(data):
+    # data = data.decode('utf-8')
     lines = data.split(b'\\n')
     result = {}
     for line in lines:
@@ -203,15 +204,12 @@ async function getSerializedMappersResults(results) {
   for (const result of results) {
     let partialResult = await getTextFromMinio(result);
     console.log("🔍 First partial:", partialResult);
-    b64List.push(JSON.parse(partialResult));
+    b64List.push(partialResult.toString("utf-8"));
   }
   //console.log("🔍 Mappers results aggregated:", resultJSON);
-  console.log(
-    "🔍 Returning serialized results for REDUCER:",
-    JSON.stringify(b64List)
-  );
+  console.log("🔍 Returning serialized results for REDUCER:", b64List);
   // Return the
-  return JSON.stringify(b64List);
+  return b64List;
 }
 
 /**
@@ -243,15 +241,15 @@ async function setSerializedMapperResult(task, result) {
     console.log(`ℹ️ Bucket ${bucket} already exists, skipping creation.`);
   }
 
-  if (isPyProxy(result)) {
+  if (isPyProxy(result) || Array.isArray(result)) {
+    console.log("WE ARE IN REDUCER TERASORT ARRAY");
     // TERASORT REDUCER: result is an array
-    const jsArray = result.toJs();
-    result.destroy();
+    const jsArray = Array.isArray(result) ? result : result.toJs();
+    result.destroy?.(); // Destroy the PyProxy object if needed
     const urls = [];
     for (let i = 0; i < jsArray.length; i++) {
       const reducerResult = jsArray[i];
       const objectName = `${task.numWorker}_${i}.txt`;
-      const resultJSON = JSON.stringify(reducerResult);
 
       console.log(
         `📦 Storing reducer result in Minio: ${basePath}/${objectName}`
@@ -260,8 +258,8 @@ async function setSerializedMapperResult(task, result) {
         await minioClient.putObject(
           bucket,
           `${workerId}/${objectName}`,
-          Buffer.from(resultJSON),
-          resultJSON.length,
+          Buffer.from(reducerResult),
+          reducerResult.length,
           "application/json"
         );
         urls.push(`${basePath}/${objectName}`);
@@ -272,17 +270,17 @@ async function setSerializedMapperResult(task, result) {
     }
     return urls; // Optional: returns all URLs
   } else {
+    console.log("WE ARE WHERE WE SHOULD NOT BE");
     // NORMAL CASE
     const objectName = `${task.numWorker}.txt`;
-    const resultJSON = JSON.stringify(result);
 
     console.log(`📦 Storing result in Minio: ${basePath}/${objectName}`);
     try {
       await minioClient.putObject(
         bucket,
         `${workerId}/${objectName}`,
-        Buffer.from(resultJSON),
-        resultJSON.length,
+        Buffer.from(result),
+        result.length,
         "application/json"
       );
       return `${basePath}/${objectName}`;
@@ -322,12 +320,11 @@ async function executeCodeAndSendResult(task) {
     if (task.type === "reduceterasort" || task.type === "reducewordcount") {
       // Reducer: arg es un JSON‐string con ["b64part1","b64part2",...]
       // Pasamos esa cadena TEXTUAL directamente a Python
-      let bytes_string = bytes.toString("utf-8");
-      rawBytesLine = `raw_bytes = ${JSON.stringify(bytes_string)}`;
+      rawBytesLine = `raw_bytes = ${JSON.stringify(bytes)}`;
     } else {
       // Map: bytes es un Buffer → lo pasamos como Base64 y DECODIFICAMOS en Python
       const b64 = bytes.toString("base64");
-      rawBytesLine = `raw_bytes = base64.b64decode(${JSON.stringify(b64)})`;
+      rawBytesLine = `raw_bytes = base64.b64decode("${b64}")`;
     }
 
     const pyScript = `
@@ -346,6 +343,10 @@ result
     // await new Promise((resolve) => setTimeout(resolve, 3000));
     let result = await pyodide.runPythonAsync(pyScript);
     console.log(`✔️ Completed ${task.arg}:${task.taskId}:`, result);
+
+    console.log("🔍 typeof result:", typeof result);
+    console.log("🔍 instanceof Array:", result instanceof Array);
+    console.log("🔍 isPyProxy:", isPyProxy(result));
 
     if (task.type === "mapwordcount" || task.type === "mapterasort") {
       const resultURL = await setSerializedMapperResult(task, result);
