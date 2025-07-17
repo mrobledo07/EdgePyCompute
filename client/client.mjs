@@ -39,7 +39,7 @@ def task(bytes):
         num_partitions=${NUMREDUCERS}
     )
     serialized_partitions = [serialize_partition(p) for p in partitioned_data.values()]
-    return serialized_partitions
+    return json.dumps(serialized_partitions)
 `;
 
 const codeReduceTerasort = `
@@ -105,7 +105,7 @@ const mapReduceTerasort = {
 
 const maxTasksWordcount = argsMapReduceWordcount.length;
 const maxTasksTerasort = argsMapReduceTerasort.length;
-const maxTasks = maxTasksTerasort; // Change to maxTasksWordcount for wordcount
+const maxTasks = maxTasksWordcount; // Change to maxTasksWordcount for wordcount
 let tasksExecuted = 0;
 let ws;
 
@@ -113,7 +113,7 @@ async function start() {
   try {
     const res = await axios.post(
       `${HTTP_ORCH}/register_task`,
-      mapReduceTerasort
+      mapReduceWordcount
     );
 
     const taskId = res.data.task_id;

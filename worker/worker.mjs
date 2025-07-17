@@ -239,14 +239,12 @@ async function setSerializedMapperResult(task, result) {
     console.log(`ℹ️ Bucket ${bucket} already exists, skipping creation.`);
   }
 
-  if (isPyProxy(result) || Array.isArray(result)) {
+  if (Array.isArray(result)) {
     console.log("WE ARE IN REDUCER TERASORT ARRAY");
     // TERASORT REDUCER: result is an array
-    const jsArray = Array.isArray(result) ? result : result.toJs();
-    result.destroy?.(); // Destroy the PyProxy object if needed
     const urls = [];
-    for (let i = 0; i < jsArray.length; i++) {
-      const reducerResult = jsArray[i];
+    for (let i = 0; i < result.length; i++) {
+      const reducerResult = result[i];
       const objectName = `${task.numWorker}_${i}.txt`;
 
       console.log(
@@ -341,6 +339,10 @@ result
     // await new Promise((resolve) => setTimeout(resolve, 3000));
     let result = await pyodide.runPythonAsync(pyScript);
     console.log(`✔️ Completed ${task.arg}:${task.taskId}:`, result);
+
+    if (task.type === "mapterasort") {
+      result = JSON.parse(result);
+    }
 
     console.log("🔍 typeof result:", typeof result);
     console.log("🔍 instanceof Array:", result instanceof Array);
