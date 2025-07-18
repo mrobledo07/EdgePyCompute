@@ -35,4 +35,4 @@ mc cp files/example4.txt myminio/test/
 mc cp files/terasort-20m myminio/test/
 echo "📤 examples txt uploaded to the 'test' bucket"
 
-exec node --watch client.mjs
+exec node --watch client.mjs configs/mapreduce_wordcount.json

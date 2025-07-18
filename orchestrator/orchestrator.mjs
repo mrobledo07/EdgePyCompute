@@ -397,6 +397,7 @@ wss.on("connection", (ws, req) => {
         if (clientInfo && clientInfo.ws) {
           clientInfo.ws.send(
             JSON.stringify({
+              message_type: "task_result",
               arg: msg.arg,
               status: msg.status,
               result: msg.result,
