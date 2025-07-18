@@ -3,16 +3,32 @@ import axios from "axios";
 import WebSocket from "ws"; // Using ws client
 import readline from "readline/promises";
 
-const HTTP_ORCH = "http://localhost:3000";
-const WS_ORCH = "ws://localhost:3000";
+// Small parser for CLI arguments
+function parseArgs() {
+  const args = process.argv.slice(2);
+  const result = {};
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--config") {
+      result.configPath = args[i + 1];
+      i++;
+    } else if (args[i] === "--orch") {
+      result.orchestrator = args[i + 1];
+      i++;
+    }
+  }
+  return result;
+}
 
-const configPath = process.argv[2]; // Load from CLI argument
+// Validate and prepare args
+const { configPath, orchestrator } = parseArgs();
 
 let tasksExecuted = 0;
 let ws = null;
 let taskId = -1;
 let maxTasks = -1;
 let task = null;
+let http_orch = "http://localhost:3000";
+let ws_orch = "ws://localhost:3000";
 
 async function fileExists(filePath) {
   try {
@@ -99,11 +115,44 @@ async function sendTaskWithRetry(task, HTTP_ORCH) {
   rl.close();
 }
 
-async function start() {
-  if (!configPath) {
-    console.error("❌ Please provide the path to a config file.");
+function validateAndSetOrchestratorUrl(orch) {
+  let input = orch.trim();
+
+  // If the input does not start with http:// or https://, prepend http://
+  if (!input.startsWith("http://") && !input.startsWith("https://")) {
+    input = "http://" + input;
+  }
+
+  let url;
+  try {
+    url = new URL(input);
+  } catch (err) {
+    console.error(
+      "❌ Invalid orchestrator format. Expected format: <domain|ip>:port"
+    );
     process.exit(1);
   }
+
+  // Validamos que el host tenga el formato correcto (host:puerto)
+  const hostRegex = /^([a-zA-Z0-9.-]+|\d{1,3}(\.\d{1,3}){3}):\d{1,5}$/;
+  if (!hostRegex.test(url.host)) {
+    console.error("❌ Invalid host format. Expected: <domain|ip>:port");
+    process.exit(1);
+  }
+
+  http_orch = url.protocol + "//" + url.host;
+  ws_orch = url.protocol.replace("http", "ws") + "//" + url.host;
+}
+
+async function start() {
+  if (!configPath || !orchestrator) {
+    console.error(
+      "❌ Missing required argument: --config <path_to_config> or --orch <orchestrator_url>"
+    );
+    process.exit(1);
+  }
+
+  validateAndSetOrchestratorUrl(orchestrator);
 
   try {
     const config = await loadConfig(configPath);
@@ -119,9 +168,9 @@ async function start() {
     process.exit(1);
   }
 
-  await sendTaskWithRetry(task, HTTP_ORCH);
+  await sendTaskWithRetry(task, http_orch);
 
-  ws = new WebSocket(`${WS_ORCH}?task_id=${taskId}`);
+  ws = new WebSocket(`${ws_orch}?task_id=${taskId}`);
 
   ws.on("open", () =>
     console.log("🔌 Connected to ORCHESTRATOR via WebSocket. TASKID:", taskId)
