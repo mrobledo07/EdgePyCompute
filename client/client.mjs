@@ -133,7 +133,7 @@ function validateAndSetOrchestratorUrl(orch) {
     process.exit(1);
   }
 
-  // Validamos que el host tenga el formato correcto (host:puerto)
+  // Validate the URL structure (host:port)
   const hostRegex = /^([a-zA-Z0-9.-]+|\d{1,3}(\.\d{1,3}){3}):\d{1,5}$/;
   if (!hostRegex.test(url.host)) {
     console.error("❌ Invalid host format. Expected: <domain|ip>:port");
