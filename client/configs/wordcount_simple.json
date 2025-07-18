@@ -1,0 +1,9 @@
+{
+  "type": "mapreducewordcount",
+  "code": [
+    "./codes/map_wordcount.py"
+  ],
+  "args": [
+    ["http://localhost:9000/test/example1.txt"]
+  ]
+}
