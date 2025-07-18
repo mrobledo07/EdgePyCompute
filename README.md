@@ -1,10 +1,10 @@
-# 🚀 EdgePyCompute
+# 🚀 PyEdgeCompute
 
-**EdgePyCompute** is a framework that enables users to run parallel scientific Python applications across personal and edge devices (e.g., laptops, Raspberry Pis), rather than relying on expensive cloud or proprietary clusters.
+**PyEdgeCompute** is a framework that enables users to run parallel scientific Python applications across personal and edge devices (e.g., laptops, Raspberry Pis), rather than relying on expensive cloud or proprietary clusters.
 
 By compiling Python code to WebAssembly (via Pyodide), the system allows seamless and dependency-free execution across any machine with a browser or Node.js runtime. This means no installations, no dependency hell — just fast, portable scientific computation.
 
-🔬 Designed for scientists and data analysts using Python — the most widely adopted language in the field — **EdgePyCompute** makes distributed computing simple and accessible, even on constrained edge devices.
+🔬 Designed for scientists and data analysts using Python — the most widely adopted language in the field — **PyEdgeCompute** makes distributed computing simple and accessible, even on constrained edge devices.
 
 💡 Inspired by the Wasimoff project, but extended to support more complex workloads and external data I/O.
 
