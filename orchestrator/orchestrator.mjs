@@ -210,6 +210,7 @@ const dispatchTask = (task) => {
 
   if (worker && worker.availableWorkers > 0) {
     reserveWorkerAndSendTask(worker, task);
+    task.code = task.code[0]; // Use the first code for non-mapreduce tasks
   } else {
     console.log(
       `🕒 No available workers. Task for "${task.arg}:${task.taskId}" queued.`

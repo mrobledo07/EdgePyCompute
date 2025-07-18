@@ -56,6 +56,7 @@ def task(bytes):
 
 const code = "";
 
+const codeNoneTask = [code];
 const codeWordcount = [codeMapWordcount, codeReduceWordcount];
 const codeTerasort = [codeMapTerasort, codeReduceTerasort];
 
