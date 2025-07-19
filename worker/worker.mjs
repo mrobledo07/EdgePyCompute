@@ -324,7 +324,7 @@ async function executeCodeAndSendResult(task) {
     }
 
     const pyScript = `
-      ${task.code}
+${task.code}
 ${rawBytesLine}
 try:
     result = task(raw_bytes)

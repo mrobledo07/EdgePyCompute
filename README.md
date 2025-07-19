@@ -24,15 +24,16 @@ cd orchestrator/
 sudo docker-compose up
 ```
 
-3.2. This command will build the Docker image for the client and start the client object storage:
+3.2. This command will start the script for the client and start the client object storage:
 ```bash
 cd client/
 sudo docker-compose up
+node client.mjs --config <path_to_config_file> --orch <orchestrator_ip||domain:port>
 ```
+
+You can see example configurations in the `client/configs/` directory.
 
 4. Execute test.sh
 ```bash
-bash test_mapreduce.sh
+bash launch_workers.sh <NUM_WORKERS>
 ```
-
-Maybe you would want to execute test_mapreduce.sh before the client docker-compose up so you have all the workers available to execute your mapreduce job.
