@@ -11,7 +11,10 @@ class WorkerRegistry {
   /** Añade un nuevo worker */
   addWorker(worker) {
     // worker should have: worker_id, availableWorkers, tasksAssignated
-    worker.tasksAssignated = new Map();
+    worker.tasksAssignated = {
+      map: new Map(),
+      len: 0,
+    };
     this.workersById.set(worker.worker_id, worker);
     this._addToAvailability(worker.worker_id, worker.availableWorkers);
   }
@@ -49,7 +52,9 @@ class WorkerRegistry {
   assignTaskToWorker(worker_id, taskId, task) {
     const worker = this.workersById.get(worker_id);
     if (!worker) return false;
-    worker.tasksAssignated.set(taskId, task);
+    worker.tasksAssignated.map.set(taskId, task);
+    worker.tasksAssignated.len++;
+
     this.updateAvailability(worker_id, worker.availableWorkers - 1);
     return true;
   }
@@ -58,7 +63,8 @@ class WorkerRegistry {
   completeTaskOnWorker(worker_id, taskId) {
     const worker = this.workersById.get(worker_id);
     if (!worker) return false;
-    worker.tasksAssignated.delete(taskId);
+    worker.tasksAssignated.map.delete(taskId);
+    worker.tasksAssignated.len--;
     this.updateAvailability(worker_id, worker.availableWorkers + 1);
     return true;
   }

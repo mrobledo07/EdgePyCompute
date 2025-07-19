@@ -18,11 +18,12 @@ export function handleWorkerSocket(ws, workerId) {
     console.log(`❌ Worker disconnected with ID ${workerId}`);
     // const worker = workers.find((w) => w.worker_id === workerId);
     const worker = workerRegistry.getWorkerById(workerId);
-    if (worker && worker?.tasksAssignated.length > 0) {
-      taskQueue.push([...worker.tasksAssignated.values()]);
+    if (worker && worker?.tasksAssignated.len > 0) {
+      const tasksworker = [...worker.tasksAssignated.map.values()];
+      taskQueue.push(tasksworker);
       console.log(
         "Tasks re-queued from disconnected worker:",
-        worker.tasksAssignated.map((t) => `${t.arg}:${t.taskId}`)
+        tasksworker.map((t) => `${t.arg}:${t.taskId}`)
       );
     }
     workerRegistry.removeWorker(workerId);
