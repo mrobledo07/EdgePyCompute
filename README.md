@@ -33,7 +33,7 @@ node client.mjs --config <path_to_config_file> --orch <orchestrator_ip||domain:p
 
 You can see example configurations in the `client/configs/` directory.
 
-4. Execute test.sh
+4. Execute launch_workers.sh
 ```bash
 bash launch_workers.sh <NUM_WORKERS>
 ```
