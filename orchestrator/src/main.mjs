@@ -1,10 +1,11 @@
 import express from "express";
 import { v4 as uuidv4 } from "uuid";
 import { wss } from "./wsServer.mjs";
-import { workers } from "./state.mjs";
-import { sortWorkers } from "./workerManager.mjs";
+//import { workers } from "./state.mjs";
+//import { sortWorkers } from "./workerManager.mjs";
 import { dispatchTask } from "./tasksDispatcher.mjs";
 import { taskClients } from "./state.mjs";
+import workerRegistry from "./workerRegistry.mjs";
 
 const app = express();
 const port = 3000;
@@ -25,9 +26,9 @@ app.post("/register_worker", (req, res) => {
     tasksAssignated: [],
   };
 
-  workers.push(newWorker);
-  sortWorkers();
-
+  //workers.push(newWorker);
+  //sortWorkers();
+  workerRegistry.addWorker(newWorker);
   console.log(
     `👍 Worker registered with ID: ${worker_id} and ${newWorker.availableWorkers} processors.`
   );

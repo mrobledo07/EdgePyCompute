@@ -1,5 +1,5 @@
 {
-  "type": "mapreducewordcount",
+  "type": "wordcount",
   "code": [
     "client/codes/map_wordcount.py"
   ],

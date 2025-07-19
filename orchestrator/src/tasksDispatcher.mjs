@@ -1,7 +1,7 @@
 // tasks/dispatcher.mjs
 
-import { workers, taskQueue, mapreduceTasks } from "./state.mjs";
-import { getAvailableWorkerSlots, sortWorkers } from "./workerManager.mjs";
+import { taskQueue, mapreduceTasks } from "./state.mjs";
+import workerRegistry from "./workerRegistry.mjs";
 
 /**
  * Processes the task queue by trying to assign tasks to available workers.
@@ -9,25 +9,24 @@ import { getAvailableWorkerSlots, sortWorkers } from "./workerManager.mjs";
 export function processTaskQueue() {
   while (
     taskQueue.length > 0 &&
-    workers.length > 0 &&
-    workers[0].availableWorkers > 0
+    workerRegistry.getTotalAvailableWorkers() > 0
   ) {
     const next = taskQueue[0]; // Peek
+    const numAvailableWorkers = workerRegistry.getTotalAvailableWorkers();
 
     const canDispatch = (() => {
-      const numWorkers = getAvailableWorkerSlots().length;
       if (
         next.type === "mapreducewordcount" ||
         next.type === "mapreduceterasort"
       ) {
-        return numWorkers >= next.arg[1]; // num mappers
+        return numAvailableWorkers >= next.arg[1]; // num mappers
       }
 
       if (next.type === "reduceterasort") {
-        return numWorkers >= next.numReducers;
+        return numAvailableWorkers >= next.numReducers;
       }
 
-      return workers[0].availableWorkers > 0;
+      return numAvailableWorkers > 0;
     })();
 
     if (!canDispatch) {
@@ -75,11 +74,11 @@ export function dispatchTask(task) {
  * Dispatches map tasks to available workers.
  */
 function dispatchMappers(task) {
-  const workersAvailable = getAvailableWorkerSlots();
+  const numAvailableWorkers = workerRegistry.getTotalAvailableWorkers();
   const [mapperCode, reducerCode] = task.code;
   const numMappers = task.arg[1];
 
-  if (numMappers > workersAvailable.length) {
+  if (numMappers > numAvailableWorkers) {
     console.log(`🕒 Not enough workers for map phase of ${task.taskId}`);
     return false;
   }
@@ -98,7 +97,7 @@ function dispatchMappers(task) {
   }
 
   task.arg = task.arg[0]; // raw args to send to each mapper
-
+  const workersAvailable = workerRegistry.getBestWorkers(numMappers);
   // Dispatch to N mappers
   for (let i = 0; i < numMappers; i++) {
     const worker = workersAvailable[i];
@@ -121,7 +120,7 @@ function dispatchMappers(task) {
  * Dispatches reduce tasks to available workers.
  */
 function dispatchReducers(task) {
-  const workersAvailable = getAvailableWorkerSlots();
+  const numAvailableWorkers = workerRegistry.getTotalAvailableWorkers();
   const numReducers = task.numReducers;
 
   if (numReducers > workersAvailable.length) {
@@ -133,6 +132,7 @@ function dispatchReducers(task) {
   //                         …                          ]    // mapper m
 
   const argsMatrix = task.arg; // [ [m0_files], [m1_files], ... ]
+  const workersAvailable = workerRegistry.getBestWorkers(numReducers);
 
   for (let r = 0; r < numReducers; r++) {
     const reducerArgs = [];
@@ -161,9 +161,10 @@ function dispatchReducers(task) {
  * Assigns a task to a worker and sends it via WebSocket.
  */
 function reserveWorkerAndSendTask(worker, task) {
-  worker.availableWorkers--;
-  worker.tasksAssignated.push(task);
-  sortWorkers();
+  //worker.availableWorkers--;
+  //worker.tasksAssignated.push(task);
+  //sortWorkers();
+  workerRegistry.assignTaskToWorker(worker.worker_id, task.taskId);
 
   worker.ws.send(JSON.stringify(task), (err) => {
     if (err) {
@@ -172,12 +173,13 @@ function reserveWorkerAndSendTask(worker, task) {
         err.message
       );
       // Recover worker and re-queue task
-      worker.availableWorkers++;
-      worker.tasksAssignated = worker.tasksAssignated.filter(
-        (t) => t.taskId !== task.taskId || t.arg !== task.arg
-      );
-      taskQueue.unshift(task);
-      sortWorkers();
+      // worker.availableWorkers++;
+      // worker.tasksAssignated = worker.tasksAssignated.filter(
+      //   (t) => t.taskId !== task.taskId || t.arg !== task.arg
+      // );
+      // taskQueue.unshift(task);
+      // sortWorkers();
+      workerRegistry.completeTaskOnWorker(worker.worker_id, task.taskId);
     } else {
       console.log(
         `✅ Sent task ${task.taskId}:${task.arg} to worker ${worker.worker_id}`

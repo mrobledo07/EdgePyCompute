@@ -1,13 +1,14 @@
 // workers/socketHandler.mjs
-import { workers } from "./state.mjs";
-import { sortWorkers } from "./workerManager.mjs";
+// import { workers } from "./state.mjs";
+// import { sortWorkers } from "./workerManager.mjs";
 import { taskClients, mapreduceTasks, taskQueue } from "./state.mjs";
-import { dispatchTask } from "./tasksDispatcher.mjs";
-import { processTaskQueue } from "./tasksManager.mjs";
+import { processTaskQueue, dispatchTask } from "./tasksDispatcher.mjs";
+import workerRegistry from "./workerRegistry.mjs";
 
 export function handleWorkerSocket(ws, workerId) {
   console.log(`🔌 Worker connected with ID ${workerId}`);
-  const worker = workers.find((w) => w.worker_id === workerId);
+  // const worker = workers.find((w) => w.worker_id === workerId);
+  const worker = workerRegistry.getWorkerById(workerId);
 
   if (worker) {
     worker.ws = ws;
@@ -16,16 +17,18 @@ export function handleWorkerSocket(ws, workerId) {
 
   ws.on("close", () => {
     console.log(`❌ Worker disconnected with ID ${workerId}`);
-    const worker = workers.find((w) => w.worker_id === workerId);
-    if (worker?.tasksAssignated.length > 0) {
+    // const worker = workers.find((w) => w.worker_id === workerId);
+    const worker = workerRegistry.getWorkerById(workerId);
+    if (worker && worker?.tasksAssignated.length > 0) {
       taskQueue.push(...worker.tasksAssignated);
       console.log(
         "Tasks re-queued from disconnected worker:",
         worker.tasksAssignated.map((t) => `${t.arg}:${t.taskId}`)
       );
     }
-    workers = workers.filter((w) => w.worker_id !== workerId);
-    sortWorkers();
+    workerRegistry.removeWorker(workerId);
+    //workers = workers.filter((w) => w.worker_id !== workerId);
+    //sortWorkers();
   });
 
   ws.on("message", (data) => {
@@ -38,17 +41,19 @@ export function handleWorkerSocket(ws, workerId) {
     }
 
     console.log(`📨 Message from worker ${workerId}:`, msg);
-    const worker = workers.find((w) => w.worker_id === workerId);
+    //const worker = workers.find((w) => w.worker_id === workerId);
+    const worker = workerRegistry.getWorkerById(workerId);
 
-    if (worker) {
-      worker.availableWorkers++;
-      worker.tasksAssignated = worker.tasksAssignated.filter(
-        (t) => t.taskId !== msg.taskId && t.arg !== msg.arg
-      );
-      sortWorkers();
+    const completed = workerRegistry.completeTaskOnWorker(workerId, msg.taskId);
+    if (completed) {
       console.log(
         `✨ Worker ${workerId} now has ${worker.availableWorkers} available processors.`
       );
+    } else {
+      console.error(
+        `❌ Worker ${workerId} not found or task completion failed.`
+      );
+      return;
     }
 
     let infoTask = mapreduceTasks.get(msg.taskId);
