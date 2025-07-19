@@ -1,5 +1,5 @@
 import { initPyodide } from "./pyodideRuntime.mjs";
-import { registerWorker } from "./worker.mjs";
+import { registerWorker } from "./orchestratorAPI.mjs";
 
 (async () => {
   try {
