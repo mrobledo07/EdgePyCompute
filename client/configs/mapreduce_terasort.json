@@ -1,8 +1,8 @@
 {
   "type": "mapreduceterasort",
   "code": [
-    "./codes/map_terasort.py",
-    "./codes/reduce_terasort.py"
+    "client/codes/map_terasort.py",
+    "client/codes/reduce_terasort.py"
   ],
   "args": [
     ["http://localhost:9000/test/terasort-20m", 5, 5]

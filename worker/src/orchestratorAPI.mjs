@@ -54,7 +54,7 @@ export async function registerWorker() {
       console.log(
         `▶️ Worker ${workerId} received task ${task.arg}:${task.taskId}`
       );
-      await executeTask(task, ws); // <-- Execute the task received from the orchestrator
+      await executeTask(task, ws, workerId); // <-- Execute the task received from the orchestrator
     } catch (err) {
       console.error("❌ Error parsing message from ORCHESTRATOR:", err.message);
     }

@@ -6,7 +6,7 @@ import {
 } from "./minioStorage.mjs";
 import { getPyodide } from "./pyodideRuntime.mjs";
 
-export async function executeTask(task, ws) {
+export async function executeTask(task, ws, workerId) {
   const pyodide = getPyodide();
   try {
     let bytes;
@@ -66,10 +66,10 @@ result
 
     console.log("🔍 typeof result:", typeof result);
     console.log("🔍 instanceof Array:", result instanceof Array);
-    console.log("🔍 isPyProxy:", isPyProxy(result));
+    // console.log("🔍 isPyProxy:", isPyProxy(result));
 
     if (task.type === "mapwordcount" || task.type === "mapterasort") {
-      const resultURL = await setSerializedMapperResult(task, result);
+      const resultURL = await setSerializedMapperResult(task, result, workerId);
       // Create resultUrl
       ws.send(
         JSON.stringify({
@@ -103,6 +103,7 @@ result
     }
   } catch (e) {
     console.error(`❌ Error on ${task.arg}:${task.taskId}:`, e.message);
+    console.error(`❌ Error on ${task.arg}:${task.taskId}:`, e);
     ws.send(
       JSON.stringify({
         arg: task.arg,

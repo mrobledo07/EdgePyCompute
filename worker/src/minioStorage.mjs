@@ -69,7 +69,7 @@ export async function getSerializedMappersResults(results) {
   return b64List;
 }
 
-export async function setSerializedMapperResult(task, result) {
+export async function setSerializedMapperResult(task, result, workerId) {
   const basePath = `${STORAGE_ORCH}/${task.taskId}/${workerId}`;
   createMinioClient(basePath);
   const minioClient = getMinioClient();
