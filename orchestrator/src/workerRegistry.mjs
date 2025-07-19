@@ -5,6 +5,8 @@ class WorkerRegistry {
     if (WorkerRegistry.instance) return WorkerRegistry.instance;
     this.workersById = new Map(); // worker_id => Worker object
     this.availabilityMap = new Map();
+    this.numWorkers = 0; // Total number of workers
+    this.totalAvailableWorkers = 0; // Total available workers across all buckets
     WorkerRegistry.instance = this;
   }
 
@@ -17,6 +19,8 @@ class WorkerRegistry {
     };
     this.workersById.set(worker.worker_id, worker);
     this._addToAvailability(worker.worker_id, worker.availableWorkers);
+    this.numWorkers++;
+    this.totalAvailableWorkers += worker.availableWorkers;
   }
 
   /** Elimina un worker */
@@ -25,6 +29,8 @@ class WorkerRegistry {
     if (!worker) return false;
     this._removeFromAvailability(worker_id, worker.availableWorkers);
     this.workersById.delete(worker_id);
+    this.numWorkers--;
+    this.totalAvailableWorkers -= worker.availableWorkers;
     return true;
   }
 
@@ -43,6 +49,9 @@ class WorkerRegistry {
     const worker = this.workersById.get(worker_id);
     if (!worker) return false;
     this._removeFromAvailability(worker_id, worker.availableWorkers);
+    const oldAvailability = worker.availableWorkers;
+    const delta = newAvailability - oldAvailability;
+    this.totalAvailableWorkers += delta;
     worker.availableWorkers = newAvailability;
     this._addToAvailability(worker_id, newAvailability);
     return true;
@@ -89,13 +98,7 @@ class WorkerRegistry {
 
   /** Suma el len de todas las buckets para obtener el total disponible */
   getTotalAvailableWorkers() {
-    let total = 0;
-    for (const [availability, bucket] of this.availabilityMap.entries()) {
-      if (Number(availability) > 0) {
-        total += bucket.len;
-      }
-    }
-    return total;
+    return this.totalAvailableWorkers;
   }
 
   /** Interno: añade workerId a la bucket de disponibilidad */
