@@ -84,12 +84,16 @@ class WorkerRegistry {
    */
   getBestWorkers(n) {
     const result = [];
+    let numWorkers = 0;
     // Iterar keys ordenadas desc
     const keys = [...this.availabilityMap.keys()].sort((a, b) => b - a);
     for (const avail of keys) {
       const bucket = this.availabilityMap.get(avail);
       for (const workerId of bucket.workers.keys()) {
-        result.push(this.workersById.get(workerId));
+        const worker = this.workersById.get(workerId);
+        worker.worker_num = numWorkers;
+        result.push(worker);
+        numWorkers++;
         if (result.length >= n) return result;
       }
     }
