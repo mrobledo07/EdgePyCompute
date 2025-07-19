@@ -1,5 +1,4 @@
 from pyedgecompute import deserialize_input_terasort, partition_data, serialize_partition
-import json
 
 def task(bytes):
     parsed_data = deserialize_input_terasort(bytes)

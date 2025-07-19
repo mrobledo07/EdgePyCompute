@@ -1,0 +1,135 @@
+import {
+  getMinioClient,
+  createMinioClient,
+  obtainBucketAndObjectName,
+} from "./minioClient.mjs";
+
+import { STORAGE_ORCH } from "./config.mjs";
+
+export async function getTextFromMinio(fileUrl, offset = -1, numMappers = -1) {
+  const parsed = new URL(fileUrl);
+  createMinioClient(parsed);
+  const minioClient = getMinioClient();
+  const { bucket, objectName } = obtainBucketAndObjectName(fileUrl);
+  let stream;
+  if (offset == -1) {
+    stream = await minioClient.getObject(bucket, objectName);
+  } else {
+    // If offset is provided, get a partial object
+    const stat = await minioClient.statObject(bucket, objectName);
+    const totalSize = stat.size;
+    const chunkSize = Math.floor(totalSize / numMappers);
+    const start = offset * chunkSize;
+    let end = (offset + 1) * chunkSize - 1;
+
+    // Assign the last chunk to the last mapper
+    if (offset === numMappers - 1) end = totalSize - 1;
+
+    stream = await minioClient.getPartialObject(bucket, objectName, start, end);
+  }
+  return new Promise((res, rej) => {
+    const chunks = [];
+    stream.on("data", (c) => chunks.push(c));
+    stream.on("end", () => res(Buffer.concat(chunks)));
+    stream.on("error", (e) => rej(e));
+  });
+}
+
+export async function getPartialObjectMinio(task) {
+  const offset = task.numWorker;
+  const numMappers = task.numMappers;
+  console.log(
+    `🔍 Getting partial object from Minio: offset=${offset}, numMappers=${numMappers}`
+  );
+  if (offset === undefined || numMappers === undefined) {
+    throw new Error(
+      "Invalid task received. Missing offset or num of mappers for MAPPER partial object."
+    );
+  }
+  console.log(`🔍 Getting TASK ARG ${task.arg}`);
+  const text = await getTextFromMinio(task.arg, offset, numMappers);
+  return text;
+}
+
+export async function getSerializedMappersResults(results) {
+  if (!Array.isArray(results) || results.length === 0)
+    throw new Error(
+      "Invalid task received. Missing array of results for REDUCER."
+    );
+
+  const b64List = [];
+  for (const result of results) {
+    let partialResult = await getTextFromMinio(result);
+    console.log("🔍 First partial:", partialResult);
+    b64List.push(partialResult.toString("utf-8"));
+  }
+  //console.log("🔍 Mappers results aggregated:", resultJSON);
+  console.log("🔍 Returning serialized results for REDUCER:", b64List);
+  // Return the
+  return b64List;
+}
+
+export async function setSerializedMapperResult(task, result) {
+  const basePath = `${STORAGE_ORCH}/${task.taskId}/${workerId}`;
+  createMinioClient(basePath);
+  const minioClient = getMinioClient();
+  const { bucket } = obtainBucketAndObjectName(basePath);
+
+  try {
+    await minioClient.makeBucket(bucket, "us-east-1");
+  } catch (e) {
+    if (e.code !== "BucketAlreadyOwnedByYou") {
+      console.error(`❌ Error creating bucket ${bucket}:`, e.message);
+      throw e;
+    }
+    console.log(`ℹ️ Bucket ${bucket} already exists, skipping creation.`);
+  }
+
+  // we would do isPyProxy(result) to check if result is a Pyodide proxy object in case of removing json.dumps from map_terasort.py
+  if (Array.isArray(result)) {
+    console.log("WE ARE IN REDUCER TERASORT ARRAY");
+    // TERASORT REDUCER: result is an array
+    const urls = [];
+    for (let i = 0; i < result.length; i++) {
+      const reducerResult = result[i];
+      const objectName = `${task.numWorker}_${i}.txt`;
+
+      console.log(
+        `📦 Storing reducer result in Minio: ${basePath}/${objectName}`
+      );
+      try {
+        await minioClient.putObject(
+          bucket,
+          `${workerId}/${objectName}`,
+          Buffer.from(reducerResult),
+          reducerResult.length,
+          "application/json"
+        );
+        urls.push(`${basePath}/${objectName}`);
+      } catch (e) {
+        console.error(`❌ Error storing reducer result [${i}]:`, e.message);
+        throw e;
+      }
+    }
+    return urls; // Optional: returns all URLs
+  } else {
+    console.log("WE ARE WHERE WE SHOULD NOT BE");
+    // NORMAL CASE
+    const objectName = `${task.numWorker}.txt`;
+
+    console.log(`📦 Storing result in Minio: ${basePath}/${objectName}`);
+    try {
+      await minioClient.putObject(
+        bucket,
+        `${workerId}/${objectName}`,
+        Buffer.from(result),
+        result.length,
+        "application/json"
+      );
+      return `${basePath}/${objectName}`;
+    } catch (e) {
+      console.error(`❌ Error storing result in Minio:`, e.message);
+      throw e;
+    }
+  }
+}
