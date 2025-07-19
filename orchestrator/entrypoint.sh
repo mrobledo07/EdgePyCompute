@@ -11,4 +11,4 @@ done
 
 echo "✅ MinIO is ready, proceeding..."
 
-exec node --watch orchestrator.mjs
+exec node --watch src/main.mjs

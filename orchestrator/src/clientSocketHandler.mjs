@@ -1,6 +1,6 @@
 // clients/socketHandler.mjs
 
-import { taskClients, taskQueue } from "./state.mjs";
+import { taskClients } from "./state.mjs";
 import taskQueue from "./taskQueue.mjs";
 
 export function handleClientSocket(ws, taskId) {
