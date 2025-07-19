@@ -1,17 +1,18 @@
 // tasks/dispatcher.mjs
 
-import { taskQueue, mapreduceTasks } from "./state.mjs";
+import { mapreduceTasks } from "./state.mjs";
 import workerRegistry from "./workerRegistry.mjs";
+import taskQueue from "./taskQueue.mjs";
 
 /**
  * Processes the task queue by trying to assign tasks to available workers.
  */
 export function processTaskQueue() {
   while (
-    taskQueue.length > 0 &&
+    taskQueue.size() > 0 &&
     workerRegistry.getTotalAvailableWorkers() > 0
   ) {
-    const next = taskQueue[0]; // Peek
+    const next = taskQueue.peek(); // Peek
     const numAvailableWorkers = workerRegistry.getTotalAvailableWorkers();
 
     const canDispatch = (() => {
@@ -58,7 +59,7 @@ export function dispatchTask(task) {
   }
 
   // Default case: normal task
-  const worker = getAvailableWorkerSlots()[0];
+  const worker = workerRegistry.getBestWorkers(1)[0];
   if (worker) {
     task.code = task.code[0]; // Use first code block
     reserveWorkerAndSendTask(worker, task);
@@ -123,7 +124,7 @@ function dispatchReducers(task) {
   const numAvailableWorkers = workerRegistry.getTotalAvailableWorkers();
   const numReducers = task.numReducers;
 
-  if (numReducers > workersAvailable.length) {
+  if (numReducers > numAvailableWorkers) {
     console.log(`🕒 Not enough workers for reduce phase of ${task.taskId}`);
     return false;
   }
@@ -164,7 +165,7 @@ function reserveWorkerAndSendTask(worker, task) {
   //worker.availableWorkers--;
   //worker.tasksAssignated.push(task);
   //sortWorkers();
-  workerRegistry.assignTaskToWorker(worker.worker_id, task.taskId);
+  workerRegistry.assignTaskToWorker(worker.worker_id, task.taskId, task);
 
   worker.ws.send(JSON.stringify(task), (err) => {
     if (err) {

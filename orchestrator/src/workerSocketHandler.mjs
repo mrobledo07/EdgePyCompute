@@ -1,26 +1,25 @@
 // workers/socketHandler.mjs
 // import { workers } from "./state.mjs";
 // import { sortWorkers } from "./workerManager.mjs";
-import { taskClients, mapreduceTasks, taskQueue } from "./state.mjs";
+import { taskClients, mapreduceTasks } from "./state.mjs";
 import { processTaskQueue, dispatchTask } from "./tasksDispatcher.mjs";
 import workerRegistry from "./workerRegistry.mjs";
+import taskQueue from "./taskQueue.mjs";
 
 export function handleWorkerSocket(ws, workerId) {
   console.log(`🔌 Worker connected with ID ${workerId}`);
+
   // const worker = workers.find((w) => w.worker_id === workerId);
   const worker = workerRegistry.getWorkerById(workerId);
-
-  if (worker) {
-    worker.ws = ws;
-    processTaskQueue();
-  }
+  worker.ws = ws;
+  processTaskQueue();
 
   ws.on("close", () => {
     console.log(`❌ Worker disconnected with ID ${workerId}`);
     // const worker = workers.find((w) => w.worker_id === workerId);
     const worker = workerRegistry.getWorkerById(workerId);
     if (worker && worker?.tasksAssignated.length > 0) {
-      taskQueue.push(...worker.tasksAssignated);
+      taskQueue.push([...worker.tasksAssignated.values()]);
       console.log(
         "Tasks re-queued from disconnected worker:",
         worker.tasksAssignated.map((t) => `${t.arg}:${t.taskId}`)

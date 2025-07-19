@@ -1,6 +1,6 @@
 // workerRegistry.mjs
 
-export class WorkerRegistry {
+class WorkerRegistry {
   constructor() {
     if (WorkerRegistry.instance) return WorkerRegistry.instance;
     this.workersById = new Map(); // worker_id => Worker object
@@ -46,10 +46,10 @@ export class WorkerRegistry {
   }
 
   /** Asigna una tarea a un worker (tarea y decremento de hilos) */
-  assignTaskToWorker(worker_id, taskId) {
+  assignTaskToWorker(worker_id, taskId, task) {
     const worker = this.workersById.get(worker_id);
     if (!worker) return false;
-    worker.tasksAssignated.set(taskId, true);
+    worker.tasksAssignated.set(taskId, task);
     this.updateAvailability(worker_id, worker.availableWorkers - 1);
     return true;
   }
