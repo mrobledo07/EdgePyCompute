@@ -22,19 +22,24 @@ export function processTaskQueue() {
         nextTask.type === "mapreducewordcount" ||
         nextTask.type === "mapreduceterasort"
       ) {
+        console.log(`Mappers needed: ${nextTask.arg[1]}`);
+        console.log(`Available workers: ${numAvailableWorkers}`);
         return numAvailableWorkers >= nextTask.arg[1]; // num mappers
       }
 
       if (nextTask.type === "reduceterasort") {
+        console.log(`Reducers needed: ${nextTask.numReducers}`);
+        console.log(`Available workers: ${numAvailableWorkers}`);
         return numAvailableWorkers >= nextTask.numReducers;
       }
 
+      console.log(`Available workers: ${numAvailableWorkers}`);
       return numAvailableWorkers > 0;
     })();
 
     if (!canDispatch) {
       console.log(
-        `🕒 No available workers. Task "${nextTask.arg}:${nextTask.taskId}" remains in queue.`
+        `🕒 No available workers. Task "${nextTask.arg}:${next.taskId}" remains in queue.`
       );
       break;
     }
@@ -79,7 +84,12 @@ export function dispatchTask(task) {
     // Default case: normal task
     const worker = workerRegistry.getBestWorkers(1)[0];
     if (worker) {
-      task.code = task.code[0]; // Use first code block
+      if (Array.isArray(task.code) && task.code.length > 1) {
+        console.warn(
+          `⚠️ Task ${task.taskId} has multiple code blocks. Using the first one.`
+        );
+        task.code = task.code[0]; // Use first code block
+      }
       reserveWorkerAndSendTask(worker, task);
     } else {
       console.log(
