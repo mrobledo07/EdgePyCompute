@@ -50,7 +50,7 @@ export async function getPartialObjectMinio(task) {
   return text;
 }
 
-export async function getSerializedMappersResults(results) {
+export async function getSerializedResults(results) {
   if (!Array.isArray(results) || results.length === 0)
     throw new Error(
       "Invalid task received. Missing array of results for REDUCER."
@@ -68,7 +68,7 @@ export async function getSerializedMappersResults(results) {
   return b64List;
 }
 
-export async function setSerializedMapperResult(task, result, workerId) {
+export async function setSerializedResult(task, result) {
   const basePath = `${STORAGE_ORCH}/${task.clientId}/${task.taskId}`;
   createMinioClient(basePath);
   const minioClient = getMinioClient();
@@ -114,7 +114,8 @@ export async function setSerializedMapperResult(task, result, workerId) {
   } else {
     console.log("WE ARE WHERE WE SHOULD NOT BE");
     // NORMAL CASE
-    const objectName = `${task.numWorker}.txt`;
+    const numWorker = task.numWorker || 0; // Default to 0 if not provided
+    const objectName = `${numWorker}.txt`;
 
     console.log(`📦 Storing result in Minio: ${basePath}/${objectName}`);
     try {

@@ -58,10 +58,10 @@ class WorkerRegistry {
   }
 
   /** Asigna una tarea a un worker (tarea y decremento de hilos) */
-  assignTaskToWorker(worker_id, taskId, task) {
+  assignTaskToWorker(worker_id, clientId, taskId) {
     const worker = this.workersById.get(worker_id);
     if (!worker) return false;
-    worker.tasksAssignated.map.set(taskId, task);
+    worker.tasksAssignated.map.set(taskId, clientId);
     worker.tasksAssignated.len++;
 
     this.updateAvailability(worker_id, worker.availableWorkers - 1);

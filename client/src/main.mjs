@@ -2,6 +2,7 @@
 import { parseArgs, getOrchestratorUrls } from "./utils.mjs";
 import { loadConfig, loadCode } from "./configLoader.mjs";
 import { sendTaskWithRetry, connectToWebSocket } from "./orchestratorAPI.mjs";
+import { Stopwatch } from "./stopWatch.mjs";
 
 async function main() {
   const { configPath, orchestrator } = parseArgs();
@@ -34,8 +35,15 @@ async function main() {
     process.exit(1);
   }
 
-  const taskId = await sendTaskWithRetry(task, urls.http);
-  connectToWebSocket(urls.ws, taskId, maxTasks);
+  const clientId = await sendTaskWithRetry(task, urls.http);
+  let stopwatches = [];
+  for (let i = 0; i < maxTasks; i++) {
+    const stopwatch = new Stopwatch();
+    stopwatch.start();
+    stopwatches.push(stopwatch);
+  }
+  console.log("🕒 Stopwatch started for task:", clientId);
+  connectToWebSocket(urls.ws, clientId, maxTasks, stopwatches);
 }
 
 main();

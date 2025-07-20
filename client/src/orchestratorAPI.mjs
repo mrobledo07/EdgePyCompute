@@ -33,7 +33,7 @@ export async function sendTaskWithRetry(task, httpUrl) {
   }
 }
 
-export function connectToWebSocket(wsUrl, clientId, maxTasks) {
+export function connectToWebSocket(wsUrl, clientId, maxTasks, stopwatches) {
   const ws = new WebSocket(`${wsUrl}?client_id=${clientId}`);
   let tasksExecuted = 0;
 
@@ -46,14 +46,27 @@ export function connectToWebSocket(wsUrl, clientId, maxTasks) {
 
   ws.on("message", (data) => {
     try {
-      const { message_type, arg, taskId, status, result, executionTime } =
+      const { message_type, arg, taskId, status, result, cpuTime, ioTime } =
         JSON.parse(data.toString());
 
       switch (message_type) {
         case "task_result":
+          stopwatches[tasksExecuted].stop();
+          const executionTimeClient = parseFloat(
+            stopwatches[tasksExecuted].getDuration().toFixed(4)
+          );
           tasksExecuted++;
+          const roundTo4 = (num) => Math.round(num * 10000) / 10000;
+
           console.log(
-            `📦 Task ${taskId}. Status: ${status}. Execution time: ${executionTime}. Result: ${result}.`
+            `🕒 Task ${taskId} completed. Execution time CLIENT: ${executionTimeClient} seconds.`
+          );
+          console.log(
+            `📦 Task ${taskId}. Status: ${status}. CPU time: ${roundTo4(
+              cpuTime
+            )}. I/O time: ${roundTo4(ioTime)}. Total time: ${roundTo4(
+              cpuTime + ioTime
+            )} Result: ${result}.`
           );
           if (tasksExecuted >= maxTasks) {
             console.log("✅ All tasks executed.");

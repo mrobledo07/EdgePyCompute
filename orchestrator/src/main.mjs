@@ -7,7 +7,7 @@ import { dispatchTask } from "./tasksDispatcher.mjs";
 // import { taskClients } from "./state.mjs";
 import workerRegistry from "./workerRegistry.mjs";
 import clientRegistry from "./clientRegistry.mjs";
-import { Stopwatch } from "./stopWatch.mjs";
+// import { Stopwatch } from "./stopWatch.mjs";
 
 const app = express();
 const port = 3000;
@@ -72,16 +72,16 @@ app.post("/register_task", (req, res) => {
   );
 
   res.json({ message: "Client registered successfully", client_id: clientId });
-  const sw = new Stopwatch();
   // Dispatch each individual task
   for (const arg of args) {
+    //const sw = new Stopwatch();
     const taskId = uuidv4();
     clientRegistry.addTask(clientId, {
       code,
       arg,
       taskId,
       type,
-      stopwatch: sw,
+      //stopwatch: sw,
       executionTime: 0,
     });
     // console.log(

@@ -1,13 +1,14 @@
 import {
   getTextFromMinio,
   getPartialObjectMinio,
-  getSerializedMappersResults,
-  setSerializedMapperResult,
+  getSerializedResults,
+  setSerializedResult,
 } from "./minioStorage.mjs";
 import { getPyodide } from "./pyodideRuntime.mjs";
 
-export async function executeTask(task, ws, workerId) {
+export async function executeTask(task, ws, stopWatch) {
   const pyodide = getPyodide();
+  stopWatch.start();
   try {
     console.log("RECEIVING CLIENT ID:", task.clientId);
     let bytes;
@@ -24,7 +25,7 @@ export async function executeTask(task, ws, workerId) {
       console.log(
         `🔍 Getting serialized results for REDUCER task ${task.arg}:${task.taskId}`
       );
-      bytes = await getSerializedMappersResults(task.arg);
+      bytes = await getSerializedResults(task.arg);
     } else {
       console.log(
         `🔍 Getting full object for task ${task.arg}:${task.taskId} (not
@@ -47,6 +48,12 @@ export async function executeTask(task, ws, workerId) {
       rawBytesLine = `raw_bytes = base64.b64decode("${b64}")`;
     }
 
+    const roundTo4 = (num) => Math.round(num * 10000) / 10000;
+
+    stopWatch.stop();
+    //let ioTime = parseFloat(stopWatch.getDuration().toFixed(4));
+    let ioTime = roundTo4(stopWatch.getDuration());
+
     const pyScript = `
 ${task.code}
 ${rawBytesLine}
@@ -64,11 +71,17 @@ result
     );
     //sleep for 3 seconds to simulate a long task
     // await new Promise((resolve) => setTimeout(resolve, 3000));
+
+    stopWatch.start();
+
     let result = await pyodide.runPythonAsync(pyScript);
     // console.log(
     //   `✔️ Completed task ${task.taskId} from client ${task.clientId} with arg ${task.arg}`,
     //   result
     // );
+    stopWatch.stop();
+    //const cpuTime = parseFloat(stopWatch.getDuration().toFixed(4));
+    const cpuTime = roundTo4(stopWatch.getDuration());
 
     console.log(
       `✔️ Completed task ${task.taskId} from client ${task.clientId} with arg ${task.arg}`
@@ -82,39 +95,23 @@ result
     //console.log("🔍 instanceof Array:", result instanceof Array);
     // console.log("🔍 isPyProxy:", isPyProxy(result));
 
-    if (task.type === "mapwordcount" || task.type === "mapterasort") {
-      const resultURL = await setSerializedMapperResult(task, result, workerId);
-      // Create resultUrl
-      ws.send(
-        JSON.stringify({
-          clientId: task.clientId,
-          taskId: task.taskId,
-          status: "done",
-          result: resultURL,
-        })
-      );
-    } else if (task.type === "reduceterasort") {
-      /* Code if we want to change output of reduce terasort (now is pickle and base64)*/
-      // result = Buffer.from(result, "base64").toString("utf-8"); <-- Only if result is a CSV
-      // result = JSON.parse(result);
-      ws.send(
-        JSON.stringify({
-          clientId: task.clientId,
-          taskId: task.taskId,
-          status: "done",
-          result,
-        })
-      );
-    } else {
-      ws.send(
-        JSON.stringify({
-          clientId: task.clientId,
-          taskId: task.taskId,
-          status: "done",
-          result,
-        })
-      );
-    }
+    stopWatch.start();
+    const resultURL = await setSerializedResult(task, result);
+    stopWatch.stop();
+    //ioTime += parseFloat(stopWatch.getDuration().toFixed(4));
+    ioTime = roundTo4(ioTime + stopWatch.getDuration());
+
+    // Create resultUrl
+    ws.send(
+      JSON.stringify({
+        clientId: task.clientId,
+        taskId: task.taskId,
+        status: "done",
+        result: resultURL,
+        ioTime,
+        cpuTime,
+      })
+    );
   } catch (e) {
     console.error(
       `❌ Error on task ${task.taskId} from client ${task.clientId} with arg ${task.arg}`,
@@ -130,7 +127,10 @@ result
         taskId: task.taskId,
         status: "error",
         result: e.message,
+        ioTime,
+        cpuTime,
       })
     );
+    stopWatch.stop();
   }
 }

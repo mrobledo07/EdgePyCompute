@@ -2,9 +2,11 @@ import axios from "axios";
 import WebSocket from "ws";
 import { executeTask } from "./taskExecutor.mjs";
 import { HTTP_ORCH, WS_ORCH } from "./config.mjs";
+import { Stopwatch } from "./stopWatch.mjs";
 
 let workerId;
 let ws;
+let stopWatch;
 
 export async function registerWorker() {
   try {
@@ -13,6 +15,7 @@ export async function registerWorker() {
     });
     workerId = data.worker_id;
     ws = new WebSocket(`${WS_ORCH}?worker_id=${workerId}`);
+    stopWatch = new Stopwatch();
   } catch (err) {
     if (err.response) {
       console.error(
@@ -54,7 +57,7 @@ export async function registerWorker() {
       console.log(
         `▶️ Worker ${workerId} received task ${taskId} from client ${clientId} with arg ${arg}`
       );
-      await executeTask(task, ws, workerId); // <-- Execute the task received from the orchestrator
+      await executeTask(task, ws, stopWatch); // <-- Execute the task received from the orchestrator
     } catch (err) {
       console.error("❌ Error parsing message from ORCHESTRATOR:", err.message);
     }

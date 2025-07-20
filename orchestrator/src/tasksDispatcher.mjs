@@ -71,15 +71,16 @@ export function dispatchTask(task) {
       return true;
     }
 
-    if (task.type === "reduceterasort") {
+    if (task.type === "reducewordcount" || task.type === "reduceterasort") {
       const ok = dispatchReducers(task);
       if (!ok) taskQueue.push({ clientId: task.clientId, taskId: task.taskId });
       return true;
     }
 
-    if (task.type === "reducewordcount") {
-      task.taskId = `${task.taskId}-reducer`;
-    }
+    // const oldTaskId = task.taskId; // Save original taskId
+    // if (task.type === "reducewordcount") {
+    //   task.taskId = `${task.taskId}-reducer`;
+    // }
 
     // Default case: normal task
     const worker = workerRegistry.getBestWorkers(1)[0];
@@ -90,6 +91,7 @@ export function dispatchTask(task) {
         );
         task.code = task.code[0]; // Use first code block
       }
+      //clientRegistry.getClientTask(task.clientId, oldTaskId).stopwatch.start();
       reserveWorkerAndSendTask(worker, task);
     } else {
       console.log(
@@ -145,7 +147,8 @@ function dispatchMappers(task) {
     numReducers: task.numReducers,
     codeReduce: reducerCode,
     type: task.type,
-    results: [],
+    resultsMappers: [],
+    resultsReducers: [],
   });
   for (let i = 0; i < numMappers; i++) {
     const worker = workersAvailable[i];
@@ -158,7 +161,7 @@ function dispatchMappers(task) {
     reserveWorkerAndSendTask(worker, individualTask);
   }
 
-  clientRegistry.getClientTask(task.clientId, task.taskId).stopwatch.start(); // Start stopwatch for the task
+  // clientRegistry.getClientTask(task.clientId, task.taskId).stopwatch.start(); // Start stopwatch for the task
   return true;
 }
 
@@ -181,37 +184,46 @@ function dispatchReducers(task) {
   //                         [ “…_0.txt”, “…_1.txt”, … ],     // mapper 1
   //                         …                          ]    // mapper m
 
-  const argsMatrix = task.arg; // [ [m0_files], [m1_files], ... ]
   const workersAvailable = workerRegistry.getBestWorkers(numReducers);
 
-  for (let r = 0; r < numReducers; r++) {
-    const reducerArgs = [];
+  if (task.type === "reduceterasort") {
+    const argsMatrix = task.arg; // [ [m0_files], [m1_files], ... ]
 
-    for (const [i, mapperFiles] of argsMatrix.entries()) {
-      if (!Array.isArray(mapperFiles)) {
-        throw new Error(
-          `Invalid input: argsMatrix[${i}] is not an array. Got: ${typeof mapperFiles}`
-        );
+    for (let r = 0; r < numReducers; r++) {
+      const reducerArgs = [];
+
+      for (const [i, mapperFiles] of argsMatrix.entries()) {
+        if (!Array.isArray(mapperFiles)) {
+          throw new Error(
+            `Invalid input: argsMatrix[${i}] is not an array. Got: ${typeof mapperFiles}`
+          );
+        }
+        const file = mapperFiles.find((f) => f.endsWith(`-${r}.txt`));
+        if (!file) {
+          throw new Error(`Reducer ${r} missing input from mapper.`);
+        }
+        reducerArgs.push(file);
       }
-      const file = mapperFiles.find((f) => f.endsWith(`-${r}.txt`));
-      if (!file) {
-        throw new Error(`Reducer ${r} missing input from mapper.`);
-      }
-      reducerArgs.push(file);
+
+      const reducerTask = {
+        ...task,
+        taskId: `${task.taskId}-reducer${r}`,
+        arg: reducerArgs,
+        numWorker: workersAvailable[r].worker_num,
+      };
+
+      //clientRegistry.addTask(task.clientId, reducerTask);
+      reserveWorkerAndSendTask(workersAvailable[r], reducerTask);
     }
-
+  } else {
     const reducerTask = {
       ...task,
-      taskId: `${task.taskId}-reducer${r}`,
-      arg: reducerArgs,
-      numWorker: workersAvailable[r].worker_num,
+      taskId: `${task.taskId}-reducer`,
     };
-
-    //clientRegistry.addTask(task.clientId, reducerTask);
-    reserveWorkerAndSendTask(workersAvailable[r], reducerTask);
+    reserveWorkerAndSendTask(workersAvailable[0], reducerTask);
   }
 
-  clientRegistry.getClientTask(task.clientId, task.taskId).stopwatch.start(); // Start stopwatch for the task
+  // clientRegistry.getClientTask(task.clientId, task.taskId).stopwatch.start(); // Start stopwatch for the task
 
   return true;
 }
@@ -242,7 +254,11 @@ function reserveWorkerAndSendTask(worker, task) {
       // sortWorkers();
       //workerRegistry.completeTaskOnWorker(worker.worker_id, task.taskId);
     } else {
-      workerRegistry.assignTaskToWorker(worker.worker_id, task.taskId, task);
+      workerRegistry.assignTaskToWorker(
+        worker.worker_id,
+        task.clientId,
+        task.taskId
+      );
       clientRegistry.markTaskRunning(
         task.clientId,
         task.taskId,

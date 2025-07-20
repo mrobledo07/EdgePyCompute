@@ -79,7 +79,7 @@ class ClientRegistry {
         type: task.type,
         state: "pending",
         assignedWorkers: new Map(),
-        stopwatch: task.stopwatch,
+        //stopwatch: task.stopwatch,
         executionTime: task.executionTime || 0,
       });
     } finally {

@@ -21,7 +21,10 @@ export function handleWorkerSocket(ws, workerId) {
     const worker = workerRegistry.getWorkerById(workerId);
     if (worker && worker?.tasksAssignated.len > 0) {
       const tasksworker = [...worker.tasksAssignated.map.values()];
-      taskQueue.push(tasksworker);
+      const tasksArray = Array.from(worker.tasksAssignated.map.entries()).map(
+        ([taskId, clientId]) => ({ taskId, clientId })
+      );
+      taskQueue.push(tasksArray);
       console.log(
         "Tasks re-queued from disconnected worker:",
         tasksworker.map((t) => `${t.arg}:${t.taskId}`)
@@ -40,6 +43,9 @@ export function handleWorkerSocket(ws, workerId) {
       console.error("❌ Invalid JSON from worker:", data.toString());
       return;
     }
+
+    let cpuTime = parseFloat(msg.cpuTime) || 0;
+    let ioTime = parseFloat(msg.ioTime) || 0;
 
     console.log(`📨 Message from worker ${workerId}:`, msg);
     //const worker = workers.find((w) => w.worker_id === workerId);
@@ -97,7 +103,7 @@ export function handleWorkerSocket(ws, workerId) {
 
     if (infoTask && infoTask.numMappers > 0) {
       infoTask.numMappers--;
-      infoTask.results.push(msg.result);
+      infoTask.resultsMappers.push([msg.result, cpuTime, ioTime]);
       //mapreduceTasks.set(cleanedTaskId, infoTask);
       console.log(
         `📦 Worker ${workerId} completed a mapper for task ${cleanedTaskId}. Remaining: ${infoTask.numMappers}`
@@ -128,7 +134,7 @@ export function handleWorkerSocket(ws, workerId) {
 
       const reduceTask = {
         code: infoTask.codeReduce,
-        arg: infoTask.results,
+        arg: infoTask.resultsMappers.map((r) => r[0]),
         taskId: cleanedTaskId,
         clientId: msg.clientId,
         type,
@@ -136,12 +142,13 @@ export function handleWorkerSocket(ws, workerId) {
         numMappers: infoTask.numMappers,
       };
 
-      const clientTask = clientRegistry.getClientTask(
-        msg.clientId,
-        cleanedTaskId
-      );
-      clientTask.stopwatch.stop(); // Stop stopwatch for the task
-      clientTask.executionTime += clientTask.stopwatch.getDuration().toFixed(2);
+      // const clientTask = clientRegistry.getClientTask(
+      //   msg.clientId,
+      //   cleanedTaskId
+      // );
+      // clientTask.stopwatch.stop(); // Stop stopwatch for the task
+      // clientTask.executionTime += clientTask.stopwatch.getDuration();
+      // infoTask.results = []; // Clear results for the next phase
       console.log(
         `🔄 Map stage completed for ${cleanedTaskId}. Starting reduce phase.`
       );
@@ -167,18 +174,30 @@ export function handleWorkerSocket(ws, workerId) {
     // console.log(">> mapreducetasks:", Array.from(mapreduceTasks.keys()));
 
     infoTask = mapreduceTasks.get(cleanedTaskId);
+    let results = [];
     //infoTask = mapreduceTasks.get(cleanedTaskId);
     if (infoTask && infoTask.numMappers === -1) {
       infoTask.numReducers--;
+      infoTask.resultsReducers.push([msg.result, cpuTime, ioTime]);
       if (infoTask.numReducers === 0) {
-        const clientTask = clientRegistry.getClientTask(
-          msg.clientId,
-          cleanedTaskId
-        );
-        clientTask.stopwatch.stop(); // Stop stopwatch for the task
-        clientTask.executionTime += clientTask.stopwatch
-          .getDuration()
-          .toFixed(2);
+        // const clientTask = clientRegistry.getClientTask(
+        //   msg.clientId,
+        //   cleanedTaskId
+        // );
+        //clientTask.stopwatch.stop(); // Stop stopwatch for the task
+        // clientTask.executionTime = parseFloat(
+        //   (
+        //     clientTask.executionTime + clientTask.stopwatch.getDuration()
+        //   ).toFixed(4)
+        // );
+        results = infoTask.resultsReducers;
+        cpuTime =
+          Math.max(...infoTask.resultsReducers.map((r) => r[1])) +
+          Math.max(...infoTask.resultsMappers.map((r) => r[1]));
+        ioTime =
+          Math.max(...infoTask.resultsReducers.map((r) => r[2])) +
+          Math.max(...infoTask.resultsMappers.map((r) => r[2]));
+
         mapreduceTasks.delete(cleanedTaskId);
         console.log(`✅ All reducers for task ${cleanedTaskId} completed.`);
       } else {
@@ -195,7 +214,26 @@ export function handleWorkerSocket(ws, workerId) {
     // console.log("!! tasks in mapreduceTasks:", mapreduceTasks.size);
     // console.log(">> mapreducetasks:", Array.from(mapreduceTasks.keys()));
 
+    if (results.length === 0) {
+      results = msg.result; // If no reducers, use the result from the message
+      // const clientTask = clientRegistry.getClientTask(
+      //   msg.clientId,
+      //   cleanedTaskId
+      // );
+      // clientTask.executionTime = parseFloat(
+      //   (clientTask.executionTime + clientTask.stopwatch.getDuration()).toFixed(
+      //     4
+      //   )
+      // );
+    } else {
+      results = results.map((r) => r[0]); // Extract only the result part
+      // console.log("🔍 results:", results);
+      // console.log("🔍 results length:", results.length);
+      // console.log("🔍 results[0]:", results[0]);
+      // console.log("🔍 results[0] type:", typeof results[0]);
+    }
     infoTask = mapreduceTasks.get(cleanedTaskId);
+
     if (!infoTask) {
       if (msg.status === "done") {
         console.log(`✅ Task ${msg.taskId} completed by worker ${workerId}.`);
@@ -233,8 +271,10 @@ export function handleWorkerSocket(ws, workerId) {
             arg: msg.arg,
             taskId: cleanedTaskId,
             status: msg.status,
-            result: msg.result,
-            executionTime: clientTask.executionTime,
+            result: results,
+            //executionTime: clientTask.executionTime,
+            cpuTime: cpuTime,
+            ioTime: ioTime,
           })
         );
         console.log(`📦 Before sending: numTasks = ${clientInfo.numTasks}`);
