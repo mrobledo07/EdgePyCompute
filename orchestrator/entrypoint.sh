@@ -11,4 +11,5 @@ done
 
 echo "✅ MinIO is ready, proceeding..."
 
-exec node --watch --inspect-brk=0.0.0.0:9229 src/main.mjs
+# exec node --watch --inspect-brk=0.0.0.0:9229 src/main.mjs  # <-- debugging
+exec node --watch src/main.mjs

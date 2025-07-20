@@ -56,7 +56,7 @@ export function handleWorkerSocket(ws, workerId) {
       );
       return;
     }
-    const cleanedTaskId = msg.taskId.replace(/-mapper\d+$/, "");
+    const cleanedTaskId = msg.taskId.replace(/-(mapper\d+|reducer\d*?)$/, "");
 
     const clientInfo = clientRegistry.getClient(msg.clientId);
     if (!clientInfo) {
@@ -130,6 +130,7 @@ export function handleWorkerSocket(ws, workerId) {
         code: infoTask.codeReduce,
         arg: infoTask.results,
         taskId: cleanedTaskId,
+        clientId: msg.clientId,
         type,
         numReducers: infoTask.numReducers,
         numMappers: infoTask.numMappers,

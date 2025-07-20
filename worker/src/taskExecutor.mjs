@@ -38,6 +38,9 @@ export async function executeTask(task, ws, workerId) {
       // Reducer: arg es un JSON‐string con ["b64part1","b64part2",...]
       // Pasamos esa cadena TEXTUAL directamente a Python
       rawBytesLine = `raw_bytes = ${JSON.stringify(bytes)}`;
+      console.log(
+        `🔍 raw_bytes for REDUCER task ${task.taskId} is: ${rawBytesLine}`
+      );
     } else {
       // Map: bytes es un Buffer → lo pasamos como Base64 y DECODIFICAMOS en Python
       const b64 = bytes.toString("base64");

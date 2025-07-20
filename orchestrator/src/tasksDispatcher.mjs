@@ -72,6 +72,10 @@ export function dispatchTask(task) {
       return true;
     }
 
+    if (task.type === "reducewordcount") {
+      task.taskId = `${task.taskId}-reducer`;
+    }
+
     // Default case: normal task
     const worker = workerRegistry.getBestWorkers(1)[0];
     if (worker) {
@@ -126,6 +130,13 @@ function dispatchMappers(task) {
   task.arg = task.arg[0]; // raw args to send to each mapper
   const workersAvailable = workerRegistry.getBestWorkers(numMappers);
   // Dispatch to N mappers
+  mapreduceTasks.set(task.taskId, {
+    numMappers: task.numMappers,
+    numReducers: task.numReducers,
+    codeReduce: reducerCode,
+    type: task.type,
+    results: [],
+  });
   for (let i = 0; i < numMappers; i++) {
     const worker = workersAvailable[i];
     const individualTask = {
@@ -136,14 +147,6 @@ function dispatchMappers(task) {
     //clientRegistry.addTask(task.clientId, individualTask);
     reserveWorkerAndSendTask(worker, individualTask);
   }
-
-  mapreduceTasks.set(task.taskId, {
-    numMappers: task.numMappers,
-    numReducers: task.numReducers,
-    codeReduce: reducerCode,
-    type: task.type,
-    results: [],
-  });
 
   return true;
 }

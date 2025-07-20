@@ -69,7 +69,7 @@ export async function getSerializedMappersResults(results) {
 }
 
 export async function setSerializedMapperResult(task, result, workerId) {
-  const basePath = `${STORAGE_ORCH}/${task.clientId}/${task.taskId}/${workerId}`;
+  const basePath = `${STORAGE_ORCH}/${task.clientId}/${task.taskId}`;
   createMinioClient(basePath);
   const minioClient = getMinioClient();
   const { bucket } = obtainBucketAndObjectName(basePath);
@@ -99,7 +99,7 @@ export async function setSerializedMapperResult(task, result, workerId) {
       try {
         await minioClient.putObject(
           bucket,
-          `${workerId}/${objectName}`,
+          `${task.taskId}/${objectName}`,
           Buffer.from(reducerResult),
           reducerResult.length,
           "application/json"
@@ -120,7 +120,7 @@ export async function setSerializedMapperResult(task, result, workerId) {
     try {
       await minioClient.putObject(
         bucket,
-        `${workerId}/${objectName}`,
+        `${task.taskId}/${objectName}`,
         Buffer.from(result),
         result.length,
         "application/json"
