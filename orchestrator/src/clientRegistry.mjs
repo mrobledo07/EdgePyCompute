@@ -2,22 +2,43 @@ class ClientRegistry {
   constructor() {
     if (ClientRegistry.instance) return ClientRegistry.instance;
     this.clients = new Map(); // clientId -> { ws, numTasks, tasks: Map }
+    this.isLocked = false;
     ClientRegistry.instance = this;
   }
 
+  lock() {
+    if (this.isLocked) throw new Error("ClientRegistry is locked.");
+    this.isLocked = true;
+  }
+
+  unlock() {
+    this.isLocked = false;
+  }
+
   registerClient(clientId, ws, numTasks) {
-    this.clients.set(clientId, {
-      ws,
-      numTasks,
-      tasks: new Map(), // taskId -> { code, args, type, state, assignedWorkers: Map }
-    });
+    this.lock();
+    try {
+      this.clients.set(clientId, {
+        ws,
+        numTasks,
+        tasks: new Map(),
+      });
+    } finally {
+      this.unlock();
+    }
   }
 
   removeClient(clientId) {
-    this.clients.delete(clientId);
+    this.lock();
+    try {
+      this.clients.delete(clientId);
+    } finally {
+      this.unlock();
+    }
   }
 
   getAllClients() {
+    if (this.isLocked) throw new Error("ClientRegistry is locked.");
     return Array.from(this.clients.entries()).map(([clientId, client]) => ({
       clientId,
       numTasks: client.numTasks,
@@ -34,10 +55,12 @@ class ClientRegistry {
   }
 
   getClient(clientId) {
+    if (this.isLocked) throw new Error("ClientRegistry is locked.");
     return this.clients.get(clientId);
   }
 
   getClientTasks(clientId) {
+    if (this.isLocked) throw new Error("ClientRegistry is locked.");
     const client = this.clients.get(clientId);
     return Array.from(client.tasks.entries()).map(([taskId, info]) => ({
       taskId,
@@ -46,37 +69,58 @@ class ClientRegistry {
   }
 
   addTask(clientId, task) {
-    const client = this.clients.get(clientId);
-    client.numTasks++;
-    client.tasks.set(task.taskId, {
-      code: task.code,
-      arg: task.arg,
-      type: task.type,
-      state: "pending",
-      assignedWorkers: new Map(), // workerId -> timestamp
-    });
+    this.lock();
+    try {
+      const client = this.clients.get(clientId);
+      client.numTasks++;
+      client.tasks.set(task.taskId, {
+        code: task.code,
+        arg: task.arg,
+        type: task.type,
+        state: "pending",
+        assignedWorkers: new Map(),
+      });
+    } finally {
+      this.unlock();
+    }
   }
 
   markTaskRunning(clientId, taskId, workerId) {
-    const task = this.clients.get(clientId).tasks.get(taskId);
-    if (!task) return;
-    task.state = "running";
-    task.assignedWorkers.set(workerId, Date.now());
+    this.lock();
+    try {
+      const task = this.clients.get(clientId).tasks.get(taskId);
+      if (!task) return;
+      task.state = "running";
+      task.assignedWorkers.set(workerId, Date.now());
+    } finally {
+      this.unlock();
+    }
   }
 
   markTaskDone(clientId, taskId) {
-    const task = this.clients.get(clientId).tasks.get(taskId);
-    if (task) task.state = "done";
+    this.lock();
+    try {
+      const task = this.clients.get(clientId).tasks.get(taskId);
+      if (task) task.state = "done";
+    } finally {
+      this.unlock();
+    }
   }
 
   markTaskError(clientId, taskId, errorMsg) {
-    const task = this.clients.get(clientId).tasks.get(taskId);
-    if (!task) return;
-    task.state = "error";
-    task.error = errorMsg;
+    this.lock();
+    try {
+      const task = this.clients.get(clientId).tasks.get(taskId);
+      if (!task) return;
+      task.state = "error";
+      task.error = errorMsg;
+    } finally {
+      this.unlock();
+    }
   }
 
   getClientStatus(clientId) {
+    if (this.isLocked) throw new Error("ClientRegistry is locked.");
     const client = this.clients.get(clientId);
     return {
       numTasks: client.numTasks,
@@ -90,11 +134,10 @@ class ClientRegistry {
   }
 
   getClientTask(clientId, taskId) {
+    if (this.isLocked) throw new Error("ClientRegistry is locked.");
     const client = this.clients.get(clientId);
     return client.tasks.get(taskId);
   }
-
-  // Puedes añadir más métodos: cleanup, reassignStaleTasks, deleteClient, etc.
 }
 
 const instance = new ClientRegistry();

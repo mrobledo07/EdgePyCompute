@@ -57,12 +57,15 @@ app.post("/register_task", (req, res) => {
   // };
 
   //taskClients.set(taskId, newTask);
-  clientRegistry.registerClient(clientId, null, args.length);
+  clientRegistry.registerClient(clientId, null, 0);
   console.log(
     ">> clients map keys after registering client:",
     Array.from(clientRegistry.clients.keys())
   );
 
+  console.log(
+    `📦 Registering client ${clientId} with ${args.length} tasks of type ${type}.`
+  );
   console.log(
     `✅ Client registered with ID: ${clientId} for ${args.length} tasks.`
   );
@@ -78,9 +81,12 @@ app.post("/register_task", (req, res) => {
       taskId,
       type,
     });
+    // console.log(
+    //   ">> clients map keys after adding tasks:",
+    //   Array.from(clientRegistry.clients.keys())
+    // );
     console.log(
-      ">> clients map keys after adding tasks:",
-      Array.from(clientRegistry.clients.keys())
+      `📨 Dispatching task ${taskId} for client ${clientId} with arg: ${arg}`
     );
     dispatchTask({ clientId, taskId, code, arg, type });
   }

@@ -56,21 +56,63 @@ export function handleWorkerSocket(ws, workerId) {
       );
       return;
     }
+    const cleanedTaskId = msg.taskId.replace(/-mapper\d+$/, "");
 
-    let infoTask = mapreduceTasks.get(msg.taskId);
+    const clientInfo = clientRegistry.getClient(msg.clientId);
+    if (!clientInfo) {
+      console.warn(
+        `⚠️ Tried to access task of non-existent client ${msg.clientId}`
+      );
+      return;
+    }
+    const clientTask = clientRegistry.getClientTask(
+      msg.clientId,
+      cleanedTaskId
+    );
+    if (!clientTask) {
+      console.error(
+        `❌ Task ${cleanedTaskId} for client ${msg.clientId} not found in registry.`
+      );
+      return;
+    }
+
+    if (clientTask.state === "done" || clientTask.state === "error") {
+      console.warn(
+        `⚠️ Task ${cleanedTaskId} for client ${msg.clientId} already marked as ${clientTask.state}. Ignoring message.`
+      );
+      return;
+    }
+
+    // console.log(
+    //   ">> task COMPLETED clients map keys:",
+    //   Array.from(clientRegistry.clients.keys())
+    // );
+
+    let infoTask = mapreduceTasks.get(cleanedTaskId);
+
+    if (infoTask && msg.status === "error")
+      mapreduceTasks.delete(cleanedTaskId); // Mapreduce task failed if any mapper or reducer fails
+
+    infoTask = mapreduceTasks.get(cleanedTaskId);
+
     if (infoTask && infoTask.numMappers > 0) {
       infoTask.numMappers--;
       infoTask.results.push(msg.result);
-      mapreduceTasks.set(msg.taskId, infoTask);
+      //mapreduceTasks.set(cleanedTaskId, infoTask);
       console.log(
-        `📦 Worker ${workerId} completed a mapper for task ${msg.taskId}. Remaining: ${infoTask.numMappers}`
+        `📦 Worker ${workerId} completed a mapper for task ${cleanedTaskId}. Remaining: ${infoTask.numMappers}`
       );
     }
 
-    infoTask = mapreduceTasks.get(msg.taskId);
+    // console.log(
+    //   ">> task COMPLETED after infoTask clients map keys:",
+    //   Array.from(clientRegistry.clients.keys())
+    // );
+
+    //infoTask = mapreduceTasks.get(msg.taskId);
     if (infoTask && infoTask.numMappers === 0) {
       infoTask.numMappers = -1;
-      mapreduceTasks.set(msg.taskId, infoTask);
+      //mapreduceTasks.set(msg.taskId, infoTask);
 
       const type =
         infoTask.type === "mapwordcount" ? "reducewordcount" : "reduceterasort";
@@ -87,46 +129,82 @@ export function handleWorkerSocket(ws, workerId) {
       const reduceTask = {
         code: infoTask.codeReduce,
         arg: infoTask.results,
-        taskId: msg.taskId,
+        taskId: cleanedTaskId,
         type,
         numReducers: infoTask.numReducers,
         numMappers: infoTask.numMappers,
       };
 
       console.log(
-        `🔄 Map stage completed for ${msg.taskId}. Starting reduce phase.`
+        `🔄 Map stage completed for ${cleanedTaskId}. Starting reduce phase.`
       );
-      dispatchTask(reduceTask);
+      const dispatched = dispatchTask(reduceTask);
+      if (!dispatched) {
+        mapreduceTasks.delete(cleanedTaskId);
+        msg.status = "error";
+        msg.result = `Failed to dispatch reduce task for ${cleanedTaskId}. Task removed.`;
+        console.error(
+          `❌ Failed to dispatch reduce task for ${cleanedTaskId}. Task removed.`
+        );
+      } else {
+        return; // Exit early if reduce task was dispatched successfully
+      }
     }
 
-    infoTask = mapreduceTasks.get(msg.taskId);
+    // console.log(
+    //   ">> task COMPLETED clients map keys after map stage:",
+    //   Array.from(clientRegistry.clients.keys())
+    // );
+
+    // console.log("!! tasks in mapreduceTasks:", mapreduceTasks.size);
+    // console.log(">> mapreducetasks:", Array.from(mapreduceTasks.keys()));
+
+    infoTask = mapreduceTasks.get(cleanedTaskId);
+    //infoTask = mapreduceTasks.get(cleanedTaskId);
     if (infoTask && infoTask.numMappers === -1) {
       infoTask.numReducers--;
       if (infoTask.numReducers === 0) {
-        mapreduceTasks.delete(msg.taskId);
-        console.log(`✅ All reducers for task ${msg.taskId} completed.`);
+        mapreduceTasks.delete(cleanedTaskId);
+        console.log(`✅ All reducers for task ${cleanedTaskId} completed.`);
       } else {
         console.log(
-          `📦 Reducer completed for ${msg.taskId}. Remaining: ${infoTask.numReducers}`
+          `📦 Reducer completed for ${cleanedTaskId}. Remaining: ${infoTask.numReducers}`
         );
       }
     }
 
-    if (!mapreduceTasks.has(msg.taskId)) {
+    // console.log(
+    //   ">> task COMPLETED clients map keys before final:",
+    //   Array.from(clientRegistry.clients.keys())
+    // );
+    // console.log("!! tasks in mapreduceTasks:", mapreduceTasks.size);
+    // console.log(">> mapreducetasks:", Array.from(mapreduceTasks.keys()));
+
+    infoTask = mapreduceTasks.get(cleanedTaskId);
+    if (!infoTask) {
       if (msg.status === "done") {
         console.log(`✅ Task ${msg.taskId} completed by worker ${workerId}.`);
         console.log("🔍 Orchestrator got from worker:", msg);
-        console.log(
-          ">> clients map keys in markdone:",
-          Array.from(clientRegistry.clients.keys())
-        );
+        // console.log(
+        //   ">> clients map keys in markdone:",
+        //   Array.from(clientRegistry.clients.keys())
+        // );
         clientRegistry.markTaskDone(msg.clientId, msg.taskId);
       } else if (msg.status === "error") {
         console.error(
           `❌ Error in task ${msg.taskId} from worker ${workerId}: ${msg.result}`
         );
-        clientRegistry.markTaskError(msg.clientId, msg.taskId, msg.result);
+        clientRegistry.markTaskError(msg.clientId, cleanedTaskId, msg.result);
       }
+
+      // console.log(
+      //   ">> task COMPLETED clients map keys final:",
+      //   Array.from(clientRegistry.clients.keys())
+      // );
+      // console.log("!! tasks in mapreduceTasks:", mapreduceTasks.size);
+      // console.log(">> mapreducetasks:", Array.from(mapreduceTasks.keys()));
+      // console.log("!! tasks in mapreduceTasks:", mapreduceTasks.size);
+      // console.log(">> mapreducetasks:", Array.from(mapreduceTasks.keys()));
       //const clientInfo = taskClients.get(msg.taskId);
       const clientInfo = clientRegistry.getClient(msg.clientId);
       if (clientInfo?.ws) {
@@ -134,17 +212,24 @@ export function handleWorkerSocket(ws, workerId) {
           JSON.stringify({
             message_type: "task_result",
             arg: msg.arg,
-            taskId: msg.taskId,
+            taskId: cleanedTaskId,
             status: msg.status,
             result: msg.result,
           })
         );
+        console.log(`📦 Before sending: numTasks = ${clientInfo.numTasks}`);
+
         clientInfo.numTasks--;
+        console.log(
+          `📦 Sent result for task ${cleanedTaskId} to client ${msg.clientId}. Remaining tasks: ${clientInfo.numTasks}`
+        );
         if (clientInfo.numTasks <= 0) {
-          console.log(`✅ All tasks for client ${msg.clientId} completed.`);
-          clientInfo.ws.close();
           clientRegistry.removeClient(msg.clientId);
+
+          console.log(`✅ All tasks for client ${msg.clientId} completed.`);
           console.log(`🗑️ Client ${msg.clientId} removed from registry.`);
+
+          clientInfo.ws.close();
         }
       } else {
         console.error(

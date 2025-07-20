@@ -56,29 +56,41 @@ export function processTaskQueue() {
  * Dispatches a single task depending on its type.
  */
 export function dispatchTask(task) {
-  if (task.type === "mapreducewordcount" || task.type === "mapreduceterasort") {
-    const ok = dispatchMappers(task);
-    if (!ok) taskQueue.push({ clientId: task.clientId, taskId: task.taskId });
-    return;
-  }
+  try {
+    if (
+      task.type === "mapreducewordcount" ||
+      task.type === "mapreduceterasort"
+    ) {
+      const ok = dispatchMappers(task);
+      if (!ok) taskQueue.push({ clientId: task.clientId, taskId: task.taskId });
+      return true;
+    }
 
-  if (task.type === "reduceterasort") {
-    const ok = dispatchReducers(task);
-    if (!ok) taskQueue.push({ clientId: task.clientId, taskId: task.taskId });
-    return;
-  }
+    if (task.type === "reduceterasort") {
+      const ok = dispatchReducers(task);
+      if (!ok) taskQueue.push({ clientId: task.clientId, taskId: task.taskId });
+      return true;
+    }
 
-  // Default case: normal task
-  const worker = workerRegistry.getBestWorkers(1)[0];
-  if (worker) {
-    task.code = task.code[0]; // Use first code block
-    reserveWorkerAndSendTask(worker, task);
-  } else {
-    console.log(
-      `🕒 No available workers. Queuing task ${task.taskId} with arg ${task.arg} from client ${task.clientId}`
+    // Default case: normal task
+    const worker = workerRegistry.getBestWorkers(1)[0];
+    if (worker) {
+      task.code = task.code[0]; // Use first code block
+      reserveWorkerAndSendTask(worker, task);
+    } else {
+      console.log(
+        `🕒 No available workers. Queuing task ${task.taskId} with arg ${task.arg} from client ${task.clientId}`
+      );
+      taskQueue.push({ clientId: task.clientId, taskId: task.taskId });
+    }
+    return true;
+  } catch (err) {
+    console.error(
+      `❌ Error while dispatching task ${task.taskId}: ${err.message}`
     );
-    taskQueue.push({ clientId: task.clientId, taskId: task.taskId });
-  }
+    console.error(err);
+    return false; // Indicate failure
+  } // opcional: stack trace completa}
 }
 
 /**
@@ -161,8 +173,13 @@ function dispatchReducers(task) {
   for (let r = 0; r < numReducers; r++) {
     const reducerArgs = [];
 
-    for (const mapperFiles of argsMatrix) {
-      const file = mapperFiles.find((f) => f.endsWith(`_${r}.txt`));
+    for (const [i, mapperFiles] of argsMatrix.entries()) {
+      if (!Array.isArray(mapperFiles)) {
+        throw new Error(
+          `Invalid input: argsMatrix[${i}] is not an array. Got: ${typeof mapperFiles}`
+        );
+      }
+      const file = mapperFiles.find((f) => f.endsWith(`-${r}.txt`));
       if (!file) {
         throw new Error(`Reducer ${r} missing input from mapper.`);
       }
@@ -196,6 +213,9 @@ function reserveWorkerAndSendTask(worker, task) {
       console.error(
         `❌ Failed to send task to ${worker.worker_id}:`,
         err.message
+      );
+      throw new Error(
+        `Failed to send task to worker ${worker.worker_id}. Error: ${err.message}`
       );
       // Recover worker and re-queue task
       // worker.availableWorkers++;

@@ -21,6 +21,7 @@ services:
       - ./:/app
     ports:
       - "3000:3000"  # Access Orchestrator from host via localhost:3000
+      - "9229:9229"  # Debugging port
     #command: ["node", "--watch", "orchestrator.mjs"]
     depends_on:
       - minio

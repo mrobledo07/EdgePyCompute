@@ -54,7 +54,7 @@ export function connectToWebSocket(wsUrl, clientId, maxTasks) {
         case "task_result":
           tasksExecuted++;
           console.log(
-            `📦 Task ${taskId}:[${arg}] Status: ${status}. Result: ${result}`
+            `📦 Task ${taskId}. Status: ${status}. Result: ${result}`
           );
           if (tasksExecuted >= maxTasks) {
             console.log("✅ All tasks executed.");
@@ -77,6 +77,12 @@ export function connectToWebSocket(wsUrl, clientId, maxTasks) {
     }
   });
 
-  ws.on("close", () => console.log("🔌 WebSocket connection closed."));
-  ws.on("error", (err) => console.error("❌ WebSocket error:", err.message));
+  ws.on("close", () => {
+    console.log("🔌 WebSocket connection closed.");
+    process.exit(0);
+  });
+  ws.on("error", (err) => {
+    console.error("❌ WebSocket error:", err.message);
+    process.exit(1);
+  });
 }
