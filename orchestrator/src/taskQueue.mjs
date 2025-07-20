@@ -1,7 +1,8 @@
 // Nodo de la cola
 class TaskNode {
-  constructor(task) {
-    this.task = task;
+  constructor(taskId, clientId) {
+    this.taskId = taskId;
+    this.clientId = clientId;
     this.next = null;
     this.prev = null;
   }
@@ -15,13 +16,13 @@ class TaskQueue {
     this.taskCount = 0;
   }
 
-  /** Add task to the end (enqueue) */
+  /** Add task(s) to the end of the queue */
   push(taskOrTasks) {
     const tasks = Array.isArray(taskOrTasks) ? taskOrTasks : [taskOrTasks];
 
-    for (const task of tasks) {
-      const node = new TaskNode(task);
-      this.taskMap.set(task.taskId, node);
+    for (const { taskId, clientId } of tasks) {
+      const node = new TaskNode(taskId, clientId);
+      this.taskMap.set(taskId, node);
 
       if (!this.tail) {
         this.head = this.tail = node;
@@ -35,36 +36,43 @@ class TaskQueue {
     }
   }
 
-  /** Remove task from front (dequeue) */
+  /** Remove and return the first task from the queue */
   shift() {
     if (!this.head) return null;
 
     const node = this.head;
-    this.taskMap.delete(node.task.taskId);
+    this.taskMap.delete(node.taskId);
 
-    this.head = this.head.next;
+    this.head = node.next;
     if (this.head) this.head.prev = null;
     else this.tail = null;
 
     this.taskCount--;
 
-    return node.task;
+    return { taskId: node.taskId, clientId: node.clientId };
   }
 
   /** Remove a task by taskId in O(1) */
-  remove(taskId) {
-    const node = this.taskMap.get(taskId);
-    if (!node) return false;
+  remove(taskIds) {
+    const ids = Array.isArray(taskIds) ? taskIds : [taskIds];
+    let removed = false;
 
-    if (node.prev) node.prev.next = node.next;
-    else this.head = node.next;
+    for (const taskId of ids) {
+      const node = this.taskMap.get(taskId);
+      if (!node) continue;
 
-    if (node.next) node.next.prev = node.prev;
-    else this.tail = node.prev;
+      if (node.prev) node.prev.next = node.next;
+      else this.head = node.next;
 
-    this.taskMap.delete(taskId);
-    this.taskCount--;
-    return true;
+      if (node.next) node.next.prev = node.prev;
+      else this.tail = node.prev;
+
+      this.taskMap.delete(taskId);
+      this.taskCount--;
+      removed = true;
+    }
+
+    return removed;
   }
 
   /** Get the total number of pending tasks */
@@ -77,9 +85,10 @@ class TaskQueue {
     return this.head === null;
   }
 
-  /** Peek the first task */
+  /** Peek the first task (without removing it) */
   peek() {
-    return this.head?.task ?? null;
+    if (!this.head) return null;
+    return { taskId: this.head.taskId, clientId: this.head.clientId };
   }
 }
 

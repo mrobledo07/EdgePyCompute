@@ -9,6 +9,7 @@ import { getPyodide } from "./pyodideRuntime.mjs";
 export async function executeTask(task, ws, workerId) {
   const pyodide = getPyodide();
   try {
+    console.log("RECEIVING CLIENT ID:", task.clientId);
     let bytes;
     if (task.type === "mapwordcount" || task.type === "mapterasort") {
       console.log(
@@ -52,20 +53,30 @@ except Exception as e:
     result = str(e)
 result
       `;
+    // console.log(
+    //   `📜 Executing task task ${task.taskId} from client ${task.clientId} with arg ${task.arg} and with code:\n${pyScript}`
+    // );
     console.log(
-      `📜 Executing task ${task.arg}:${task.taskId} with code:\n${pyScript}`
+      `📜 Executing task ${task.taskId} from client ${task.clientId} with arg ${task.arg}`
     );
     //sleep for 3 seconds to simulate a long task
     // await new Promise((resolve) => setTimeout(resolve, 3000));
     let result = await pyodide.runPythonAsync(pyScript);
-    console.log(`✔️ Completed ${task.arg}:${task.taskId}:`, result);
+    // console.log(
+    //   `✔️ Completed task ${task.taskId} from client ${task.clientId} with arg ${task.arg}`,
+    //   result
+    // );
+
+    console.log(
+      `✔️ Completed task ${task.taskId} from client ${task.clientId} with arg ${task.arg}`
+    );
 
     if (task.type === "mapterasort") {
       result = JSON.parse(result);
     }
 
-    console.log("🔍 typeof result:", typeof result);
-    console.log("🔍 instanceof Array:", result instanceof Array);
+    //console.log("🔍 typeof result:", typeof result);
+    //console.log("🔍 instanceof Array:", result instanceof Array);
     // console.log("🔍 isPyProxy:", isPyProxy(result));
 
     if (task.type === "mapwordcount" || task.type === "mapterasort") {
@@ -73,7 +84,7 @@ result
       // Create resultUrl
       ws.send(
         JSON.stringify({
-          arg: task.arg,
+          clientId: task.clientId,
           taskId: task.taskId,
           status: "done",
           result: resultURL,
@@ -85,7 +96,7 @@ result
       // result = JSON.parse(result);
       ws.send(
         JSON.stringify({
-          arg: task.arg,
+          clientId: task.clientId,
           taskId: task.taskId,
           status: "done",
           result,
@@ -94,7 +105,7 @@ result
     } else {
       ws.send(
         JSON.stringify({
-          arg: task.arg,
+          clientId: task.clientId,
           taskId: task.taskId,
           status: "done",
           result,
@@ -102,11 +113,17 @@ result
       );
     }
   } catch (e) {
-    console.error(`❌ Error on ${task.arg}:${task.taskId}:`, e.message);
-    console.error(`❌ Error on ${task.arg}:${task.taskId}:`, e);
+    console.error(
+      `❌ Error on task ${task.taskId} from client ${task.clientId} with arg ${task.arg}`,
+      e.message
+    );
+    console.error(
+      `❌ Error on task ${task.taskId} from client ${task.clientId} with arg ${task.arg}`,
+      e
+    );
     ws.send(
       JSON.stringify({
-        arg: task.arg,
+        clientId: task.clientId,
         taskId: task.taskId,
         status: "error",
         result: e.message,

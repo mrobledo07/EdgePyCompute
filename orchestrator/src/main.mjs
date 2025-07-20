@@ -4,8 +4,9 @@ import { wss } from "./wsServer.mjs";
 //import { workers } from "./state.mjs";
 //import { sortWorkers } from "./workerManager.mjs";
 import { dispatchTask } from "./tasksDispatcher.mjs";
-import { taskClients } from "./state.mjs";
+// import { taskClients } from "./state.mjs";
 import workerRegistry from "./workerRegistry.mjs";
+import clientRegistry from "./clientRegistry.mjs";
 
 const app = express();
 const port = 3000;
@@ -49,23 +50,39 @@ app.post("/register_task", (req, res) => {
     return res.status(400).json({ error: "Missing code, arguments or type." });
   }
 
-  const taskId = uuidv4();
-  const newTask = {
-    numTasks: args.length,
-    ws: null,
-  };
+  const clientId = uuidv4();
+  // const newTask = {
+  //   numTasks: args.length,
+  //   ws: null,
+  // };
 
-  taskClients.set(taskId, newTask);
-
+  //taskClients.set(taskId, newTask);
+  clientRegistry.registerClient(clientId, null, args.length);
   console.log(
-    `✅ Task registered with ID: ${taskId} for ${args.length} sub-tasks.`
+    ">> clients map keys after registering client:",
+    Array.from(clientRegistry.clients.keys())
   );
 
-  res.json({ message: "Task registered successfully", task_id: taskId });
+  console.log(
+    `✅ Client registered with ID: ${clientId} for ${args.length} tasks.`
+  );
+
+  res.json({ message: "Client registered successfully", client_id: clientId });
 
   // Dispatch each individual task
   for (const arg of args) {
-    dispatchTask({ code, arg, taskId, type });
+    const taskId = uuidv4();
+    clientRegistry.addTask(clientId, {
+      code,
+      arg,
+      taskId,
+      type,
+    });
+    console.log(
+      ">> clients map keys after adding tasks:",
+      Array.from(clientRegistry.clients.keys())
+    );
+    dispatchTask({ clientId, taskId, code, arg, type });
   }
 });
 

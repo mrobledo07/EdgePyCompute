@@ -34,25 +34,25 @@ export async function registerWorker() {
   ws.on("message", async (msg) => {
     try {
       const task = JSON.parse(msg.toString());
-      const { code, arg, taskId, type } = task;
+      const { clientId, taskId, code, arg, type } = task;
 
-      if (!code || !arg || !taskId || !type) {
+      if (!clientId || !taskId || !code || !arg || !type) {
         console.error(
-          "❌ Invalid task received from ORCHESTRATOR. Missing code, arg, taskID, or type."
+          "❌ Invalid task received from ORCHESTRATOR. Missing clientId, taskID, code, arg or type."
         );
         ws.send(
           JSON.stringify({
-            arg: task.arg,
-            taskId: task.taskId,
+            clientId,
+            taskId,
             status: "error",
             result:
-              "Invalid task received from ORCHESTRATOR. Missing code, arg, taskID, or type.",
+              "Invalid task received from ORCHESTRATOR. Missing clientId, taskID, code, arg or type.",
           })
         );
         return;
       }
       console.log(
-        `▶️ Worker ${workerId} received task ${task.arg}:${task.taskId}`
+        `▶️ Worker ${workerId} received task ${taskId} from client ${clientId} with arg ${arg}`
       );
       await executeTask(task, ws, workerId); // <-- Execute the task received from the orchestrator
     } catch (err) {

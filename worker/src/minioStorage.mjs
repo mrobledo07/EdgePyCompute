@@ -7,8 +7,7 @@ import {
 import { STORAGE_ORCH } from "./config.mjs";
 
 export async function getTextFromMinio(fileUrl, offset = -1, numMappers = -1) {
-  const parsed = new URL(fileUrl);
-  createMinioClient(parsed);
+  createMinioClient(fileUrl);
   const minioClient = getMinioClient();
   const { bucket, objectName } = obtainBucketAndObjectName(fileUrl);
   let stream;
@@ -70,7 +69,7 @@ export async function getSerializedMappersResults(results) {
 }
 
 export async function setSerializedMapperResult(task, result, workerId) {
-  const basePath = `${STORAGE_ORCH}/${task.taskId}/${workerId}`;
+  const basePath = `${STORAGE_ORCH}/${task.clientId}/${task.taskId}/${workerId}`;
   createMinioClient(basePath);
   const minioClient = getMinioClient();
   const { bucket } = obtainBucketAndObjectName(basePath);
@@ -92,7 +91,7 @@ export async function setSerializedMapperResult(task, result, workerId) {
     const urls = [];
     for (let i = 0; i < result.length; i++) {
       const reducerResult = result[i];
-      const objectName = `${task.numWorker}_${i}.txt`;
+      const objectName = `${task.numWorker}-${i}.txt`;
 
       console.log(
         `📦 Storing reducer result in Minio: ${basePath}/${objectName}`

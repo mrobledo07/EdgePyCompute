@@ -12,8 +12,8 @@ export async function sendTaskWithRetry(task, httpUrl) {
   while (true) {
     try {
       const res = await axios.post(`${httpUrl}/register_task`, task);
-      console.log("🚀 Task submitted. TASK ID:", res.data.task_id);
-      return res.data.task_id;
+      console.log("🚀 Tasks submitted. CLIENT ID:", res.data.client_id);
+      return res.data.client_id;
     } catch (err) {
       if (err.response) {
         console.error("❌ Response error:", err.response.data || err.message);
@@ -33,17 +33,22 @@ export async function sendTaskWithRetry(task, httpUrl) {
   }
 }
 
-export function connectToWebSocket(wsUrl, taskId, maxTasks) {
-  const ws = new WebSocket(`${wsUrl}?task_id=${taskId}`);
+export function connectToWebSocket(wsUrl, clientId, maxTasks) {
+  const ws = new WebSocket(`${wsUrl}?client_id=${clientId}`);
   let tasksExecuted = 0;
 
   ws.on("open", () => {
-    console.log("🔌 Connected to orchestrator via WebSocket. TASK ID:", taskId);
+    console.log(
+      "🔌 Connected to orchestrator via WebSocket. CLIENT ID:",
+      clientId
+    );
   });
 
   ws.on("message", (data) => {
     try {
-      const { message_type, arg, status, result } = JSON.parse(data.toString());
+      const { message_type, arg, taskId, status, result } = JSON.parse(
+        data.toString()
+      );
 
       switch (message_type) {
         case "task_result":

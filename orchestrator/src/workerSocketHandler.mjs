@@ -1,10 +1,11 @@
 // workers/socketHandler.mjs
 // import { workers } from "./state.mjs";
 // import { sortWorkers } from "./workerManager.mjs";
-import { taskClients, mapreduceTasks } from "./state.mjs";
+import { mapreduceTasks } from "./state.mjs";
 import { processTaskQueue, dispatchTask } from "./tasksDispatcher.mjs";
 import workerRegistry from "./workerRegistry.mjs";
 import taskQueue from "./taskQueue.mjs";
+import clientRegistry from "./clientRegistry.mjs";
 
 export function handleWorkerSocket(ws, workerId) {
   console.log(`🔌 Worker connected with ID ${workerId}`);
@@ -66,12 +67,22 @@ export function handleWorkerSocket(ws, workerId) {
       );
     }
 
+    infoTask = mapreduceTasks.get(msg.taskId);
     if (infoTask && infoTask.numMappers === 0) {
       infoTask.numMappers = -1;
       mapreduceTasks.set(msg.taskId, infoTask);
 
       const type =
         infoTask.type === "mapwordcount" ? "reducewordcount" : "reduceterasort";
+
+      // clientRegistry.addTask(msg.clientId, {
+      //   code: infoTask.codeReduce,
+      //   arg: infoTask.results,
+      //   taskId: msg.taskId,
+      //   type,
+      //   numReducers: infoTask.numReducers,
+      //   numMappers: infoTask.numMappers,
+      // });
 
       const reduceTask = {
         code: infoTask.codeReduce,
@@ -88,6 +99,7 @@ export function handleWorkerSocket(ws, workerId) {
       dispatchTask(reduceTask);
     }
 
+    infoTask = mapreduceTasks.get(msg.taskId);
     if (infoTask && infoTask.numMappers === -1) {
       infoTask.numReducers--;
       if (infoTask.numReducers === 0) {
@@ -100,25 +112,43 @@ export function handleWorkerSocket(ws, workerId) {
       }
     }
 
-    if (!infoTask) {
-      const clientInfo = taskClients.get(msg.taskId);
+    if (!mapreduceTasks.has(msg.taskId)) {
+      if (msg.status === "done") {
+        console.log(`✅ Task ${msg.taskId} completed by worker ${workerId}.`);
+        console.log("🔍 Orchestrator got from worker:", msg);
+        console.log(
+          ">> clients map keys in markdone:",
+          Array.from(clientRegistry.clients.keys())
+        );
+        clientRegistry.markTaskDone(msg.clientId, msg.taskId);
+      } else if (msg.status === "error") {
+        console.error(
+          `❌ Error in task ${msg.taskId} from worker ${workerId}: ${msg.result}`
+        );
+        clientRegistry.markTaskError(msg.clientId, msg.taskId, msg.result);
+      }
+      //const clientInfo = taskClients.get(msg.taskId);
+      const clientInfo = clientRegistry.getClient(msg.clientId);
       if (clientInfo?.ws) {
         clientInfo.ws.send(
           JSON.stringify({
             message_type: "task_result",
             arg: msg.arg,
+            taskId: msg.taskId,
             status: msg.status,
             result: msg.result,
           })
         );
         clientInfo.numTasks--;
         if (clientInfo.numTasks <= 0) {
-          console.log(`✅ All tasks for client ${msg.taskId} completed.`);
+          console.log(`✅ All tasks for client ${msg.clientId} completed.`);
           clientInfo.ws.close();
+          clientRegistry.removeClient(msg.clientId);
+          console.log(`🗑️ Client ${msg.clientId} removed from registry.`);
         }
       } else {
         console.error(
-          `❌ Client for task ${msg.taskId} not found or disconnected.`
+          `❌ Client ${msg.clientId} for task ${msg.taskId} not found or disconnected.`
         );
       }
     }

@@ -1,23 +1,26 @@
 // clients/socketHandler.mjs
 
-import { taskClients } from "./state.mjs";
+// import { taskClients } from "./state.mjs";
 import taskQueue from "./taskQueue.mjs";
+import clientRegistry from "./clientRegistry.mjs";
 
-export function handleClientSocket(ws, taskId) {
-  console.log(`🔌 Client connected for task ${taskId}`);
+export function handleClientSocket(ws, clientId) {
+  console.log(`🔌 Client connected ${clientId}`);
 
-  taskClients.get(taskId).ws = ws;
+  //taskClients.get(taskId).ws = ws;
+  const client = (clientRegistry.getClient(clientId).ws = ws);
 
   ws.on("close", () => {
-    console.log(`❌ Client disconnected from task ${taskId}`);
-    const client = taskClients.get(taskId);
+    console.log(`❌ Client disconnected ${clientId}`);
     if (client?.numTasks > 0) {
       //taskQueue = taskQueue.filter((task) => task.taskId !== taskId);
-      taskQueue.remove(taskId);
+      const clientTasks = clientRegistry.getClientTasks(clientId);
+      const taskIds = clientTasks.map((task) => task.taskId);
+      taskQueue.remove(taskIds);
       console.log(
-        `🗑️ Tasks ${taskId} removed from queue due to client disconnect.`
+        `🗑️ Tasks ${taskIds} removed from queue due to client disconnect.`
       );
     }
-    taskClients.delete(taskId);
+    clientRegistry.removeClient(clientId); // Remove client from registry
   });
 }

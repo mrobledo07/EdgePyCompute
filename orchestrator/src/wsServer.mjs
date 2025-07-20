@@ -8,11 +8,11 @@ export const wss = new WebSocketServer({ noServer: true });
 
 wss.on("connection", (ws, req) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
-  const taskId = url.searchParams.get("task_id");
+  const clientId = url.searchParams.get("client_id");
   const workerId = url.searchParams.get("worker_id");
 
-  if (taskId) {
-    handleClientSocket(ws, taskId);
+  if (clientId) {
+    handleClientSocket(ws, clientId);
   } else if (workerId) {
     handleWorkerSocket(ws, workerId);
   } else {
