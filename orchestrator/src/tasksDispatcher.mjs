@@ -1,6 +1,6 @@
 // tasks/dispatcher.mjs
 
-import { mapreduceTasks } from "./state.mjs";
+import { mapreduceTasks } from "./tasksMapReduce.mjs";
 import workerRegistry from "./workerRegistry.mjs";
 import taskQueue from "./taskQueue.mjs";
 import clientRegistry from "./clientRegistry.mjs";

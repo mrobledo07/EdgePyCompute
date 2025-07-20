@@ -1,7 +1,7 @@
 // workers/socketHandler.mjs
 // import { workers } from "./state.mjs";
 // import { sortWorkers } from "./workerManager.mjs";
-import { mapreduceTasks } from "./state.mjs";
+import { mapreduceTasks } from "./tasksMapReduce.mjs";
 import { processTaskQueue, dispatchTask } from "./tasksDispatcher.mjs";
 import workerRegistry from "./workerRegistry.mjs";
 import taskQueue from "./taskQueue.mjs";
