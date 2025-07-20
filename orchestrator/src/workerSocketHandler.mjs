@@ -136,6 +136,12 @@ export function handleWorkerSocket(ws, workerId) {
         numMappers: infoTask.numMappers,
       };
 
+      const clientTask = clientRegistry.getClientTask(
+        msg.clientId,
+        cleanedTaskId
+      );
+      clientTask.stopwatch.stop(); // Stop stopwatch for the task
+      clientTask.executionTime += clientTask.stopwatch.getDuration().toFixed(2);
       console.log(
         `🔄 Map stage completed for ${cleanedTaskId}. Starting reduce phase.`
       );
@@ -165,6 +171,14 @@ export function handleWorkerSocket(ws, workerId) {
     if (infoTask && infoTask.numMappers === -1) {
       infoTask.numReducers--;
       if (infoTask.numReducers === 0) {
+        const clientTask = clientRegistry.getClientTask(
+          msg.clientId,
+          cleanedTaskId
+        );
+        clientTask.stopwatch.stop(); // Stop stopwatch for the task
+        clientTask.executionTime += clientTask.stopwatch
+          .getDuration()
+          .toFixed(2);
         mapreduceTasks.delete(cleanedTaskId);
         console.log(`✅ All reducers for task ${cleanedTaskId} completed.`);
       } else {
@@ -208,6 +222,10 @@ export function handleWorkerSocket(ws, workerId) {
       // console.log(">> mapreducetasks:", Array.from(mapreduceTasks.keys()));
       //const clientInfo = taskClients.get(msg.taskId);
       const clientInfo = clientRegistry.getClient(msg.clientId);
+      const clientTask = clientRegistry.getClientTask(
+        msg.clientId,
+        cleanedTaskId
+      );
       if (clientInfo?.ws) {
         clientInfo.ws.send(
           JSON.stringify({
@@ -216,6 +234,7 @@ export function handleWorkerSocket(ws, workerId) {
             taskId: cleanedTaskId,
             status: msg.status,
             result: msg.result,
+            executionTime: clientTask.executionTime,
           })
         );
         console.log(`📦 Before sending: numTasks = ${clientInfo.numTasks}`);

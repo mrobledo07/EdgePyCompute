@@ -158,6 +158,7 @@ function dispatchMappers(task) {
     reserveWorkerAndSendTask(worker, individualTask);
   }
 
+  clientRegistry.getClientTask(task.clientId, task.taskId).stopwatch.start(); // Start stopwatch for the task
   return true;
 }
 
@@ -209,6 +210,8 @@ function dispatchReducers(task) {
     //clientRegistry.addTask(task.clientId, reducerTask);
     reserveWorkerAndSendTask(workersAvailable[r], reducerTask);
   }
+
+  clientRegistry.getClientTask(task.clientId, task.taskId).stopwatch.start(); // Start stopwatch for the task
 
   return true;
 }

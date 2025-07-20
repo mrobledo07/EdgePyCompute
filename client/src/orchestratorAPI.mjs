@@ -46,15 +46,14 @@ export function connectToWebSocket(wsUrl, clientId, maxTasks) {
 
   ws.on("message", (data) => {
     try {
-      const { message_type, arg, taskId, status, result } = JSON.parse(
-        data.toString()
-      );
+      const { message_type, arg, taskId, status, result, executionTime } =
+        JSON.parse(data.toString());
 
       switch (message_type) {
         case "task_result":
           tasksExecuted++;
           console.log(
-            `📦 Task ${taskId}. Status: ${status}. Result: ${result}`
+            `📦 Task ${taskId}. Status: ${status}. Execution time: ${executionTime}. Result: ${result}.`
           );
           if (tasksExecuted >= maxTasks) {
             console.log("✅ All tasks executed.");
