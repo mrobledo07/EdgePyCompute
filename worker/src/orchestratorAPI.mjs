@@ -8,6 +8,9 @@ let workerId;
 let ws;
 let stopWatch;
 
+let retryAttempts = 0;
+const MAX_RETRIES = 3;
+
 export async function registerWorker() {
   try {
     const { data } = await axios.post(`${HTTP_ORCH}/register_worker`, {
@@ -26,6 +29,24 @@ export async function registerWorker() {
       console.error(
         "❌ No response received from the ORCHESTRATOR server. The server may be down."
       );
+
+      retryAttempts++;
+      if (retryAttempts > MAX_RETRIES) {
+        console.error("❌ Maximum retry attempts reached. Exiting.");
+        return;
+      }
+
+      // Retry after 3 seconds
+      let countdown = 3;
+      const interval = setInterval(() => {
+        console.log(`🔁 Retrying in ${countdown}...`);
+        countdown--;
+
+        if (countdown < 0) {
+          clearInterval(interval);
+          registerWorker(); // Retry after countdown ends
+        }
+      }, 1000);
     } else {
       console.error("❌ Error:", err.message);
     }
