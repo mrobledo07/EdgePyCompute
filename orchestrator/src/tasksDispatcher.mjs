@@ -157,6 +157,18 @@ function dispatchMappers(task) {
       taskId: `${task.taskId}-mapper${i}`,
       numWorker: worker.worker_num,
     };
+    const clientTask = clientRegistry.getClientTask(task.clientId, task.taskId);
+    const taskClient = {
+      ...clientTask,
+      numMappers: task.numMappers,
+      numReducers: task.numReducers,
+    };
+    clientRegistry.setClientTask(task.clientId, task.taskId, taskClient);
+    // const clientTask2 = clientRegistry.getClientTask(
+    //   task.clientId,
+    //   task.taskId
+    // );
+    //console.log("CLIENT TASK:", clientTask2);
     //clientRegistry.addTask(`${task.taskId}-mapper${i}`, individualTask);
     reserveWorkerAndSendTask(worker, individualTask);
   }

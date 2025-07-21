@@ -54,19 +54,35 @@ export async function sendTaskWithRetry(task, httpUrl) {
   }
 }
 
+function printTaskObject(task) {
+  console.log("\n🧾 Full Task Object:\n");
+  console.log(JSON.stringify(task, null, 2)); // Pretty-print full JSON
+
+  if (task.metadata && Object.keys(task.metadata).length > 0) {
+    console.log("\n📊 Parsed Execution Metadata:");
+    printMetadata(task.metadata); // Usa la función anterior
+  } else {
+    console.log("\nℹ️ No metadata available.");
+  }
+}
+
 function printMetadata(metadata) {
-  console.log("📊 Execution Metadata:");
-
   Object.entries(metadata).forEach(([taskId, times], index) => {
-    const [startTime, readTime, cpuTime, writeTime, endTime] = times;
+    if (!Array.isArray(times) || times.length !== 5) {
+      console.warn(`⚠️ Invalid metadata format for ${taskId}`);
+      return;
+    }
 
-    console.log(`- ${index + 1}`);
-    console.log(`  • Task ID    : ${taskId}`);
-    console.log(`  • Start Time : ${startTime.toFixed(3)}`);
-    console.log(`  • Read time  : ${readTime.toFixed(4)}s`);
-    console.log(`  • CPU time   : ${cpuTime.toFixed(4)}s`);
-    console.log(`  • Write time : ${writeTime.toFixed(4)}s`);
-    console.log(`  • End Time   : ${endTime.toFixed(3)}`);
+    const [startTime, readTime, cpuTime, writeTime, endTime] = times;
+    const totalTime = (endTime - startTime).toFixed(4);
+
+    console.log(`🔹 Task ${index + 1}: ${taskId}`);
+    console.log(`   • Start Time : ${startTime.toFixed(3)}s`);
+    console.log(`   • Read Time  : ${readTime.toFixed(4)}s`);
+    console.log(`   • CPU Time   : ${cpuTime.toFixed(4)}s`);
+    console.log(`   • Write Time : ${writeTime.toFixed(4)}s`);
+    console.log(`   • End Time   : ${endTime.toFixed(3)}s`);
+    console.log(`   • Total Time : ${totalTime}s\n`);
   });
 }
 
@@ -89,13 +105,41 @@ export function connectToWebSocket(
 
   ws.on("message", (data) => {
     try {
-      const { message_type, taskId, status, result, metadata } = JSON.parse(
-        data.toString()
-      );
+      const parsedData = JSON.parse(data.toString());
+      if (!parsedData) {
+        console.warn("⚠️ Received malformed message:", data.toString());
+        return;
+      }
+      let task;
 
-      const metadataParsed = metadata ? JSON.parse(metadata) : {};
+      if (parsedData.type.startsWith("mapreduce")) {
+        task = {
+          message_type: "task_result",
+          type: parsedData.type,
+          numMappers: parsedData.numMappers,
+          numReducers: parsedData.numReducers,
+          taskId: parsedData.taskId,
+          status: parsedData.status,
+          result: parsedData.result,
+          metadata: parsedData.metadata || {},
+        };
+      } else {
+        task = {
+          message_type: "task_result",
+          type: parsedData.type,
+          taskId: parsedData.taskId,
+          status: parsedData.status,
+          result: parsedData.result,
+          metadata: parsedData.metadata || {},
+        };
+      }
+      // const { message_type, taskId, status, result, metadata } = JSON.parse(
+      //   data.toString()
+      // );
 
-      switch (message_type) {
+      //const metadataParsed = metadata ? JSON.parse(metadata) : {};
+
+      switch (task.message_type) {
         case "task_result":
           stopwatches[tasksExecuted].stop();
           const executionTimeClient = parseFloat(
@@ -105,14 +149,15 @@ export function connectToWebSocket(
           //const roundTo4 = (num) => Math.round(num * 10000) / 10000;
 
           const receivedTime = Date.now() / 1000; // Convert to seconds
-          console.log(`📦 Task ${taskId} completed.`);
+          console.log(`📦 Task ${task.taskId} completed.`);
           console.log(
             `⏱️ Execution time: ${executionTimeClient}s (sent at ${sentTime}, received at ${receivedTime})`
           );
-          console.log(`Status: ${status}`);
-          console.log(`Result: ${result}`);
+          printTaskObject(task);
+          // console.log(`Status: ${task.status}`);
+          // console.log(`Result: ${task.result}`);
 
-          printMetadata(metadataParsed);
+          // printMetadata(task.metadata);
           if (tasksExecuted >= maxTasks) {
             console.log("✅ All tasks executed.");
             ws.close();

@@ -96,8 +96,19 @@ export function handleWorkerSocket(ws, workerId) {
 
     let infoTask = mapreduceTasks.get(cleanedTaskId);
 
-    if (infoTask && msg.status === "error")
+    if (infoTask && msg.status === "error") {
       mapreduceTasks.delete(cleanedTaskId); // Mapreduce task failed if any mapper or reducer fails
+      const metadata = {
+        [msg.taskId]: [
+          parseFloat(msg.initTime) || 0,
+          parseFloat(msg.readTime) || 0,
+          parseFloat(msg.cpuTime) || 0,
+          parseFloat(msg.writeTime) || 0,
+          parseFloat(msg.endTime) || 0,
+        ],
+      };
+      clientTask.subTasksResults.push(metadata);
+    }
 
     infoTask = mapreduceTasks.get(cleanedTaskId);
 
@@ -314,14 +325,26 @@ export function handleWorkerSocket(ws, workerId) {
       //   endTime,
       // };
       if (client?.ws) {
-        let metadata;
+        let metadata, jsonToSend;
         if (clientTask.subTasksResults.length > 0) {
           metadata = clientTask.subTasksResults.reduce((acc, curr) => {
             return { ...acc, ...curr };
           }, {});
-          metadata = JSON.stringify(metadata);
+          //metadata = JSON.stringify(metadata);
+          //console.log("WE ARE IN MAPREDUCE JSONTOSEND:", metadata);
+          jsonToSend = {
+            message_type: "task_result",
+            type: clientTask.type,
+            numMappers: clientTask.numMappers,
+            numReducers: clientTask.numReducers,
+            taskId: cleanedTaskId,
+            status: msg.status,
+            result: results,
+            metadata,
+          };
+          //console.log("JSONTOSEND:", jsonToSend);
 
-          console.log("METADATA MAPREDUCE:", metadata);
+          //console.log("METADATA MAPREDUCE:", metadata);
         } else {
           metadata = {
             [msg.taskId]: [
@@ -332,28 +355,29 @@ export function handleWorkerSocket(ws, workerId) {
               parseFloat(msg.endTime) || 0,
             ],
           };
-          metadata = JSON.stringify(metadata);
-          console.log("METADATA:", metadata);
-        }
-        client.ws.send(
-          JSON.stringify({
+          //metadata = JSON.stringify(metadata);
+          //console.log("WE ARE IN NOO !! MAPREDUCE JSONTOSEND:", metadata);
+          jsonToSend = {
             message_type: "task_result",
-            // arg: msg.arg,
+            type: clientTask.type,
             taskId: cleanedTaskId,
             status: msg.status,
             result: results,
             metadata,
-            //executionTime: clientTask.executionTime,
-            // cpuTime: cpuTime,
-            // ioTime: ioTime,
-          })
-        );
+          };
+          //console.log("JSONTOSEND:", jsonToSend);
+          //console.log("METADATA:", metadata);
+        }
+        client.ws.send(JSON.stringify(jsonToSend));
         console.log(`📦 Before sending: numTasks = ${client.numTasks}`);
 
         console.log(
           `📦 Sent result for task ${cleanedTaskId} to client ${msg.clientId}. Remaining tasks: ${client.numTasks}`
         );
         if (clientRegistry.allTasksExecuted(msg.clientId)) {
+          const clientTasks = clientRegistry.getClientTasks(msg.clientId);
+          const taskIds = clientTasks.map((task) => task.taskId);
+          taskQueue.removeClientTasks(taskIds); // remove in case tasks are still pending
           clientRegistry.removeClient(msg.clientId);
 
           console.log(`✅ All tasks for client ${msg.clientId} completed.`);

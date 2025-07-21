@@ -155,6 +155,17 @@ class ClientRegistry {
     if (!client) return null;
     return client.tasks.get(taskId);
   }
+
+  setClientTask(clientId, taskId, taskInfo) {
+    this.lock();
+    try {
+      const client = this.clients.get(clientId);
+      if (!client) return;
+      client.tasks.set(taskId, taskInfo);
+    } finally {
+      this.unlock();
+    }
+  }
 }
 
 const instance = new ClientRegistry();
