@@ -26,9 +26,9 @@ export function handleClientSocket(ws, clientId) {
     if (clientRegistry.allTasksExecuted(clientId))
       clientRegistry.removeClient(clientId);
     // Remove client from registry if all tasks executed
-    else
-      console.log(
-        `⚠️ Client ${clientId} disconnected but tasks still pending.`
-      );
+    // else
+    //   console.log(
+    //     `⚠️ Client ${clientId} disconnected but tasks still pending.`
+    //   );
   });
 }
