@@ -70,7 +70,13 @@ function printMetadata(metadata) {
   });
 }
 
-export function connectToWebSocket(wsUrl, clientId, maxTasks, stopwatches) {
+export function connectToWebSocket(
+  wsUrl,
+  clientId,
+  maxTasks,
+  stopwatches,
+  sentTime
+) {
   const ws = new WebSocket(`${wsUrl}?client_id=${clientId}`);
   let tasksExecuted = 0;
 
@@ -98,12 +104,13 @@ export function connectToWebSocket(wsUrl, clientId, maxTasks, stopwatches) {
           tasksExecuted++;
           //const roundTo4 = (num) => Math.round(num * 10000) / 10000;
 
+          const receivedTime = Date.now() / 1000; // Convert to seconds
+          console.log(`📦 Task ${taskId} completed.`);
           console.log(
-            `🕒 Task ${taskId} completed. Execution time CLIENT: ${executionTimeClient} seconds.`
+            `⏱️ Execution time: ${executionTimeClient}s (sent at ${sentTime}, received at ${receivedTime})`
           );
-          console.log(
-            `📦 Task ${taskId}. Status: ${status}. Result: ${result}.`
-          );
+          console.log(`Status: ${status}`);
+          console.log(`Result: ${result}`);
 
           printMetadata(metadataParsed);
           if (tasksExecuted >= maxTasks) {

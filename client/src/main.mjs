@@ -57,7 +57,8 @@ async function main() {
     stopwatches.push(stopwatch);
   }
   console.log("🕒 Stopwatch started for task:", clientId);
-  connectToWebSocket(urls.ws, clientId, maxTasks, stopwatches);
+  const sentTime = Date.now() / 1000; // Convert to seconds
+  connectToWebSocket(urls.ws, clientId, maxTasks, stopwatches, sentTime);
 }
 
 main();
