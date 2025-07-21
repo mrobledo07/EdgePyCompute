@@ -15,12 +15,19 @@ class ClientRegistry {
     this.isLocked = false;
   }
 
+  allTasksExecuted(clientId) {
+    const client = this.clients.get(clientId);
+    if (!client) return false;
+    return client.numPendingTasks === 0;
+  }
+
   registerClient(clientId, ws, numTasks) {
     this.lock();
     try {
       this.clients.set(clientId, {
         ws,
         numTasks,
+        numPendingTasks: numTasks,
         tasks: new Map(),
       });
     } finally {
@@ -73,14 +80,16 @@ class ClientRegistry {
     try {
       const client = this.clients.get(clientId);
       client.numTasks++;
+      client.numPendingTasks++;
       client.tasks.set(task.taskId, {
         code: task.code,
         arg: task.arg,
         type: task.type,
         state: "pending",
         assignedWorkers: new Map(),
+        subTasksResults: [],
         //stopwatch: task.stopwatch,
-        executionTime: task.executionTime || 0,
+        //executionTime: task.executionTime || 0,
       });
     } finally {
       this.unlock();
@@ -102,8 +111,11 @@ class ClientRegistry {
   markTaskDone(clientId, taskId) {
     this.lock();
     try {
-      const task = this.clients.get(clientId).tasks.get(taskId);
-      if (task) task.state = "done";
+      const client = this.clients.get(clientId);
+      const task = client.tasks.get(taskId);
+      if (!task) return;
+      task.state = "done";
+      client.numPendingTasks--;
     } finally {
       this.unlock();
     }
@@ -112,10 +124,12 @@ class ClientRegistry {
   markTaskError(clientId, taskId, errorMsg) {
     this.lock();
     try {
-      const task = this.clients.get(clientId).tasks.get(taskId);
+      const client = this.clients.get(clientId);
+      const task = client.tasks.get(taskId);
       if (!task) return;
       task.state = "error";
       task.error = errorMsg;
+      client.numPendingTasks--;
     } finally {
       this.unlock();
     }
@@ -138,6 +152,7 @@ class ClientRegistry {
   getClientTask(clientId, taskId) {
     if (this.isLocked) throw new Error("ClientRegistry is locked.");
     const client = this.clients.get(clientId);
+    if (!client) return null;
     return client.tasks.get(taskId);
   }
 }

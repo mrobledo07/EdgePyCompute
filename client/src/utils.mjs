@@ -20,6 +20,9 @@ export function parseArgs() {
     } else if (args[i] === "--orch") {
       result.orchestrator = args[i + 1];
       i++;
+    } else if (args[i] === "--client_id") {
+      result.client_id = args[i + 1];
+      i++;
     }
   }
   return result;

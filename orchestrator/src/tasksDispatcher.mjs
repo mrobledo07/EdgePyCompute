@@ -157,7 +157,7 @@ function dispatchMappers(task) {
       taskId: `${task.taskId}-mapper${i}`,
       numWorker: worker.worker_num,
     };
-    //clientRegistry.addTask(task.clientId, individualTask);
+    //clientRegistry.addTask(`${task.taskId}-mapper${i}`, individualTask);
     reserveWorkerAndSendTask(worker, individualTask);
   }
 
@@ -212,7 +212,7 @@ function dispatchReducers(task) {
         numWorker: workersAvailable[r].worker_num,
       };
 
-      //clientRegistry.addTask(task.clientId, reducerTask);
+      //clientRegistry.addTask(`${task.taskId}-reducer${r}`, reducerTask);
       reserveWorkerAndSendTask(workersAvailable[r], reducerTask);
     }
   } else {
@@ -220,6 +220,7 @@ function dispatchReducers(task) {
       ...task,
       taskId: `${task.taskId}-reducer`,
     };
+    //clientRegistry.addTask(`${task.taskId}-reducer`, reducerTask);
     reserveWorkerAndSendTask(workersAvailable[0], reducerTask);
   }
 

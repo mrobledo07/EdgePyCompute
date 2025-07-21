@@ -16,6 +16,16 @@ app.use(express.json());
 
 // --- HTTP Endpoints ---
 
+// app.post("/client_connect", (req, res) => {
+//   const clientId = req.body.client_id;
+
+//   if (!clientId || !clientRegistry.has(clientId)) {
+//     return res.status(404).json({ error: "Client not found" });
+//   }
+
+//   return res.status(200).json({ client_id: clientId });
+// });
+
 app.post("/register_worker", (req, res) => {
   const worker_id = uuidv4();
   const { numWorkers } = req.body;

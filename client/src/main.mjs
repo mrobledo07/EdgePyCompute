@@ -1,11 +1,15 @@
 // client.js
 import { parseArgs, getOrchestratorUrls } from "./utils.mjs";
 import { loadConfig, loadCode } from "./configLoader.mjs";
-import { sendTaskWithRetry, connectToWebSocket } from "./orchestratorAPI.mjs";
+import {
+  sendTaskWithRetry,
+  connectToWebSocket,
+  //connectClient,
+} from "./orchestratorAPI.mjs";
 import { Stopwatch } from "./stopWatch.mjs";
 
 async function main() {
-  const { configPath, orchestrator } = parseArgs();
+  const { configPath, orchestrator, client_id } = parseArgs();
 
   if (!configPath || !orchestrator) {
     console.error("❌ Missing --config or --orch argument");
@@ -18,6 +22,16 @@ async function main() {
   } catch (err) {
     console.error("❌", err.message);
     process.exit(1);
+  }
+
+  if (client_id) {
+    console.log("FUNCTIONALITY NOT IMPLEMENTED YET");
+    return;
+    // console.log("🔌 Using provided client ID:", client_id);
+    // try {
+    //   const res = await connectClient(client_id, urls.http);
+    //   connectToWebSocket(urls.ws, client_id);
+    // } catch (err) {}
   }
 
   let task, maxTasks;

@@ -9,6 +9,7 @@ import { getPyodide } from "./pyodideRuntime.mjs";
 export async function executeTask(task, ws, stopWatch) {
   const pyodide = getPyodide();
   stopWatch.start();
+  const initTime = Date.now() / 1000; // Convert to seconds
   try {
     console.log("RECEIVING CLIENT ID:", task.clientId);
     let bytes;
@@ -52,7 +53,7 @@ export async function executeTask(task, ws, stopWatch) {
 
     stopWatch.stop();
     //let ioTime = parseFloat(stopWatch.getDuration().toFixed(4));
-    let ioTime = roundTo4(stopWatch.getDuration());
+    const readTime = roundTo4(stopWatch.getDuration());
 
     const pyScript = `
 ${task.code}
@@ -99,7 +100,9 @@ result
     const resultURL = await setSerializedResult(task, result);
     stopWatch.stop();
     //ioTime += parseFloat(stopWatch.getDuration().toFixed(4));
-    ioTime = roundTo4(ioTime + stopWatch.getDuration());
+    const writeTime = roundTo4(stopWatch.getDuration());
+
+    const endTime = Date.now() / 1000; // Convert to seconds
 
     // Create resultUrl
     ws.send(
@@ -108,8 +111,11 @@ result
         taskId: task.taskId,
         status: "done",
         result: resultURL,
-        ioTime,
+        initTime,
+        readTime,
         cpuTime,
+        writeTime,
+        endTime,
       })
     );
   } catch (e) {
@@ -127,8 +133,11 @@ result
         taskId: task.taskId,
         status: "error",
         result: e.message,
-        ioTime,
+        initTime,
+        readTime,
         cpuTime,
+        writeTime,
+        endTime,
       })
     );
     stopWatch.stop();

@@ -44,8 +44,8 @@ export function handleWorkerSocket(ws, workerId) {
       return;
     }
 
-    let cpuTime = parseFloat(msg.cpuTime) || 0;
-    let ioTime = parseFloat(msg.ioTime) || 0;
+    // let cpuTime = parseFloat(msg.cpuTime) || 0;
+    // let ioTime = parseFloat(msg.ioTime) || 0;
 
     console.log(`📨 Message from worker ${workerId}:`, msg);
     //const worker = workers.find((w) => w.worker_id === workerId);
@@ -64,8 +64,8 @@ export function handleWorkerSocket(ws, workerId) {
     }
     const cleanedTaskId = msg.taskId.replace(/-(mapper\d+|reducer\d*?)$/, "");
 
-    const clientInfo = clientRegistry.getClient(msg.clientId);
-    if (!clientInfo) {
+    const client = clientRegistry.getClient(msg.clientId);
+    if (!client) {
       console.warn(
         `⚠️ Tried to access task of non-existent client ${msg.clientId}`
       );
@@ -103,7 +103,25 @@ export function handleWorkerSocket(ws, workerId) {
 
     if (infoTask && infoTask.numMappers > 0) {
       infoTask.numMappers--;
-      infoTask.resultsMappers.push([msg.result, cpuTime, ioTime]);
+      // const result = {
+      //   result: msg.result,
+      //   initTime,
+      //   readTime,
+      //   cpuTime,
+      //   writeTime,
+      //   endTime,
+      // };
+      const metadata = {
+        [msg.taskId]: [
+          parseFloat(msg.initTime) || 0,
+          parseFloat(msg.readTime) || 0,
+          parseFloat(msg.cpuTime) || 0,
+          parseFloat(msg.writeTime) || 0,
+          parseFloat(msg.endTime) || 0,
+        ],
+      };
+      infoTask.resultsMappers.push(msg.result);
+      clientTask.subTasksResults.push(metadata);
       //mapreduceTasks.set(cleanedTaskId, infoTask);
       console.log(
         `📦 Worker ${workerId} completed a mapper for task ${cleanedTaskId}. Remaining: ${infoTask.numMappers}`
@@ -134,7 +152,7 @@ export function handleWorkerSocket(ws, workerId) {
 
       const reduceTask = {
         code: infoTask.codeReduce,
-        arg: infoTask.resultsMappers.map((r) => r[0]),
+        arg: infoTask.resultsMappers,
         taskId: cleanedTaskId,
         clientId: msg.clientId,
         type,
@@ -178,7 +196,25 @@ export function handleWorkerSocket(ws, workerId) {
     //infoTask = mapreduceTasks.get(cleanedTaskId);
     if (infoTask && infoTask.numMappers === -1) {
       infoTask.numReducers--;
-      infoTask.resultsReducers.push([msg.result, cpuTime, ioTime]);
+      // const result = {
+      //   result: msg.result,
+      //   initTime,
+      //   readTime,
+      //   cpuTime,
+      //   writeTime,
+      //   endTime,
+      // };
+      const metadata = {
+        [msg.taskId]: [
+          parseFloat(msg.initTime) || 0,
+          parseFloat(msg.readTime) || 0,
+          parseFloat(msg.cpuTime) || 0,
+          parseFloat(msg.writeTime) || 0,
+          parseFloat(msg.endTime) || 0,
+        ],
+      };
+      infoTask.resultsReducers.push(msg.result);
+      clientTask.subTasksResults.push(metadata);
       if (infoTask.numReducers === 0) {
         // const clientTask = clientRegistry.getClientTask(
         //   msg.clientId,
@@ -191,12 +227,12 @@ export function handleWorkerSocket(ws, workerId) {
         //   ).toFixed(4)
         // );
         results = infoTask.resultsReducers;
-        cpuTime =
-          Math.max(...infoTask.resultsReducers.map((r) => r[1])) +
-          Math.max(...infoTask.resultsMappers.map((r) => r[1]));
-        ioTime =
-          Math.max(...infoTask.resultsReducers.map((r) => r[2])) +
-          Math.max(...infoTask.resultsMappers.map((r) => r[2]));
+        // cpuTime =
+        //   Math.max(...infoTask.resultsReducers.map((r) => r[1])) +
+        //   Math.max(...infoTask.resultsMappers.map((r) => r[1]));
+        // ioTime =
+        //   Math.max(...infoTask.resultsReducers.map((r) => r[2])) +
+        //   Math.max(...infoTask.resultsMappers.map((r) => r[2]));
 
         mapreduceTasks.delete(cleanedTaskId);
         console.log(`✅ All reducers for task ${cleanedTaskId} completed.`);
@@ -225,13 +261,14 @@ export function handleWorkerSocket(ws, workerId) {
       //     4
       //   )
       // );
-    } else {
-      results = results.map((r) => r[0]); // Extract only the result part
-      // console.log("🔍 results:", results);
-      // console.log("🔍 results length:", results.length);
-      // console.log("🔍 results[0]:", results[0]);
-      // console.log("🔍 results[0] type:", typeof results[0]);
     }
+    // else {
+    //   results = results.map((r) => r.result); // Extract only the result part
+    //   // console.log("🔍 results:", results);
+    //   // console.log("🔍 results length:", results.length);
+    //   // console.log("🔍 results[0]:", results[0]);
+    //   // console.log("🔍 results[0] type:", typeof results[0]);
+    // }
     infoTask = mapreduceTasks.get(cleanedTaskId);
 
     if (!infoTask) {
@@ -247,7 +284,7 @@ export function handleWorkerSocket(ws, workerId) {
         console.error(
           `❌ Error in task ${msg.taskId} from worker ${workerId}: ${msg.result}`
         );
-        clientRegistry.markTaskError(msg.clientId, cleanedTaskId, msg.result);
+        clientRegistry.markTaskError(msg.clientId, msg.taskId, msg.result);
       }
 
       // console.log(
@@ -258,38 +295,71 @@ export function handleWorkerSocket(ws, workerId) {
       // console.log(">> mapreducetasks:", Array.from(mapreduceTasks.keys()));
       // console.log("!! tasks in mapreduceTasks:", mapreduceTasks.size);
       // console.log(">> mapreducetasks:", Array.from(mapreduceTasks.keys()));
-      //const clientInfo = taskClients.get(msg.taskId);
-      const clientInfo = clientRegistry.getClient(msg.clientId);
-      const clientTask = clientRegistry.getClientTask(
-        msg.clientId,
-        cleanedTaskId
-      );
-      if (clientInfo?.ws) {
-        clientInfo.ws.send(
+      //const client = taskClients.get(msg.taskId);
+      //const client = clientRegistry.getClient(msg.clientId);
+      // const clientTask = clientRegistry.getClientTask(
+      //   msg.clientId,
+      //   cleanedTaskId
+      // );
+      // const initTime = parseFloat(msg.initTime) || 0;
+      // const readTime = parseFloat(msg.readTime) || 0;
+      // const cpuTime = parseFloat(msg.cpuTime) || 0;
+      // const writeTime = parseFloat(msg.writeTime) || 0;
+      // const endTime = parseFloat(msg.endTime) || 0;
+      // metadata = {
+      //   initTime,
+      //   readTime,
+      //   cpuTime,
+      //   writeTime,
+      //   endTime,
+      // };
+      if (client?.ws) {
+        let metadata;
+        if (clientTask.subTasksResults.length > 0) {
+          metadata = clientTask.subTasksResults.reduce((acc, curr) => {
+            return { ...acc, ...curr };
+          }, {});
+          metadata = JSON.stringify(metadata);
+
+          console.log("METADATA MAPREDUCE:", metadata);
+        } else {
+          metadata = {
+            [msg.taskId]: [
+              parseFloat(msg.initTime) || 0,
+              parseFloat(msg.readTime) || 0,
+              parseFloat(msg.cpuTime) || 0,
+              parseFloat(msg.writeTime) || 0,
+              parseFloat(msg.endTime) || 0,
+            ],
+          };
+          metadata = JSON.stringify(metadata);
+          console.log("METADATA:", metadata);
+        }
+        client.ws.send(
           JSON.stringify({
             message_type: "task_result",
-            arg: msg.arg,
+            // arg: msg.arg,
             taskId: cleanedTaskId,
             status: msg.status,
             result: results,
+            metadata,
             //executionTime: clientTask.executionTime,
-            cpuTime: cpuTime,
-            ioTime: ioTime,
+            // cpuTime: cpuTime,
+            // ioTime: ioTime,
           })
         );
-        console.log(`📦 Before sending: numTasks = ${clientInfo.numTasks}`);
+        console.log(`📦 Before sending: numTasks = ${client.numTasks}`);
 
-        clientInfo.numTasks--;
         console.log(
-          `📦 Sent result for task ${cleanedTaskId} to client ${msg.clientId}. Remaining tasks: ${clientInfo.numTasks}`
+          `📦 Sent result for task ${cleanedTaskId} to client ${msg.clientId}. Remaining tasks: ${client.numTasks}`
         );
-        if (clientInfo.numTasks <= 0) {
+        if (clientRegistry.allTasksExecuted(msg.clientId)) {
           clientRegistry.removeClient(msg.clientId);
 
           console.log(`✅ All tasks for client ${msg.clientId} completed.`);
           console.log(`🗑️ Client ${msg.clientId} removed from registry.`);
 
-          clientInfo.ws.close();
+          client.ws.close();
         }
       } else {
         console.error(
