@@ -68,8 +68,6 @@ function printMetadata(metadata) {
     console.log(`  • Write time : ${writeTime.toFixed(4)}s`);
     console.log(`  • End Time   : ${endTime.toFixed(3)}`);
   });
-
-  console.log("✅ All tasks executed.");
 }
 
 export function connectToWebSocket(wsUrl, clientId, maxTasks, stopwatches) {
