@@ -10,6 +10,10 @@ export async function executeTask(task, ws, stopWatch) {
   const pyodide = getPyodide();
   stopWatch.start();
   const initTime = Date.now() / 1000; // Convert to seconds
+  let readTime = null;
+  let cpuTime = null;
+  let writeTime = null;
+  let endTime = null;
   try {
     console.log("RECEIVING CLIENT ID:", task.clientId);
     let bytes;
@@ -53,7 +57,7 @@ export async function executeTask(task, ws, stopWatch) {
 
     stopWatch.stop();
     //let ioTime = parseFloat(stopWatch.getDuration().toFixed(4));
-    const readTime = roundTo4(stopWatch.getDuration());
+    readTime = roundTo4(stopWatch.getDuration());
 
     const pyScript = `
 ${task.code}
@@ -82,7 +86,7 @@ result
     // );
     stopWatch.stop();
     //const cpuTime = parseFloat(stopWatch.getDuration().toFixed(4));
-    const cpuTime = roundTo4(stopWatch.getDuration());
+    cpuTime = roundTo4(stopWatch.getDuration());
 
     console.log(
       `✔️ Completed task ${task.taskId} from client ${task.clientId} with arg ${task.arg}`
@@ -100,9 +104,9 @@ result
     const resultURL = await setSerializedResult(task, result);
     stopWatch.stop();
     //ioTime += parseFloat(stopWatch.getDuration().toFixed(4));
-    const writeTime = roundTo4(stopWatch.getDuration());
+    writeTime = roundTo4(stopWatch.getDuration());
 
-    const endTime = Date.now() / 1000; // Convert to seconds
+    endTime = Date.now() / 1000; // Convert to seconds
 
     // Create resultUrl
     ws.send(

@@ -3,6 +3,7 @@
 // import { taskClients } from "./state.mjs";
 //import taskQueue from "./taskQueue.mjs";
 import clientRegistry from "./clientRegistry.mjs";
+import taskQueue from "./taskQueue.mjs";
 
 export function handleClientSocket(ws, clientId) {
   console.log(`🔌 Client connected ${clientId}`);
@@ -23,8 +24,12 @@ export function handleClientSocket(ws, clientId) {
     //   );
     // }
     // clientRegistry.removeClient(clientId); // Remove client from registry
-    if (clientRegistry.allTasksExecuted(clientId))
+    if (clientRegistry.allTasksExecuted(clientId)) {
+      const clientTasks = clientRegistry.getClientTasks(clientId);
+      const taskIds = clientTasks.map((task) => task.taskId);
+      taskQueue.removeClientTasks(taskIds); // remove in case tasks are still pending
       clientRegistry.removeClient(clientId);
+    }
     // Remove client from registry if all tasks executed
     // else
     //   console.log(
