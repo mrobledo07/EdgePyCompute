@@ -8,8 +8,8 @@ let workerId;
 let ws;
 let stopWatch;
 
-let retryAttempts = 0;
-const MAX_RETRIES = 3;
+//let retryAttempts = 0;
+//const MAX_RETRIES = 3;
 
 export async function registerWorker() {
   try {
@@ -30,11 +30,11 @@ export async function registerWorker() {
         "❌ No response received from the ORCHESTRATOR server. The server may be down."
       );
 
-      retryAttempts++;
-      if (retryAttempts > MAX_RETRIES) {
-        console.error("❌ Maximum retry attempts reached. Exiting.");
-        return;
-      }
+      // retryAttempts++;
+      // if (retryAttempts > MAX_RETRIES) {
+      //   console.error("❌ Maximum retry attempts reached. Exiting.");
+      //   return;
+      // }
 
       // Retry after 3 seconds
       let countdown = 3;
