@@ -76,7 +76,7 @@ export function handleClientSocket(ws, clientId) {
     if (clientRegistry.allTasksExecuted(clientId)) {
       const clientTasks = clientRegistry.getClientTasks(clientId);
       const taskIds = clientTasks.map((task) => task.taskId);
-      taskQueue.removeClientTasks(taskIds); // remove in case tasks are still pending
+      taskQueue.remove(taskIds); // remove in case tasks are still pending
       clientRegistry.removeClient(clientId);
     }
     // Remove client from registry if all tasks executed

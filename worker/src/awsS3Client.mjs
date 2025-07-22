@@ -42,29 +42,15 @@ export function obtainBucketName(fileUrl) {
   return bucket;
 }
 
+const S3_URL_REGEX = /^s3:\/\/([^\/]+)\/(.+)$/;
+
 export function obtainBucketAndObjectName(fileUrl) {
-  if (fileUrl.startsWith("s3://")) {
-    // Parse s3://bucket/objectName
-    const withoutPrefix = fileUrl.slice("s3://".length); // "bucket/objectName"
-    const slashIndex = withoutPrefix.indexOf("/");
-    if (slashIndex === -1) {
-      throw new Error("Invalid S3 URL, missing object key");
-    }
-    const bucket = withoutPrefix.slice(0, slashIndex);
-    const objectName = withoutPrefix.slice(slashIndex + 1);
-    console.log("STARTS WITH S3");
-    console.log("BUCKET, ", bucket);
-    console.log("OBJECTNAME, ", objectName);
-    return { bucket, objectName };
-  } else {
-    throw new Error("Invalid S3 URL format: must start with 's3://'");
-    // Parse https://bucket.s3.region.amazonaws.com/objectName
-    // const parsed = new URL(fileUrl);
-    // const bucket = parsed.hostname.split(".")[0];
-    // const objectName = parsed.pathname.slice(1);
-    // console.log("STARTS WITH bucket.s3.region.amazonaws.com/objectName");
-    // console.log("BUCKET, ", bucket);
-    // console.log("OBJECTNAME, ", objectName);
-    // return { bucket, objectName };
+  const trimmed = String(fileUrl).trim();
+  const match = S3_URL_REGEX.exec(trimmed);
+  if (!match) {
+    throw new Error("Invalid S3 URL, must match s3://bucket/object");
   }
+
+  const [, bucket, objectName] = match;
+  return { bucket, objectName };
 }

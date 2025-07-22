@@ -8,17 +8,8 @@ import { STORAGE_ORCH } from "./configMinio.mjs";
 
 export async function getTextFromMinio(fileUrl, offset = -1, numMappers = -1) {
   createMinioClient(fileUrl);
-  let bucket, objectName;
-  if (fileUrl.startsWith("s3://")) {
-    createMinioClientS3();
-    ({ bucket, objectName } = obtainBucketAndObjectNameS3(fileUrl));
-  } else {
-    createMinioClient(fileUrl);
-    ({ bucket, objectName } = obtainBucketAndObjectName(fileUrl));
-  }
   const minioClient = getMinioClient();
-
-  //const { bucket, objectName } = obtainBucketAndObjectName(fileUrl);
+  const { bucket, objectName } = obtainBucketAndObjectName(fileUrl);
   let stream;
   if (offset == -1) {
     stream = await minioClient.getObject(bucket, objectName);
@@ -78,17 +69,30 @@ export async function getSerializedResults(results) {
 }
 
 export async function setSerializedResult(task, result) {
+  // Construimos la basePath con clientId y taskId original (se usará en URL de retorno)
   const basePath = `${STORAGE_ORCH}/${task.clientId}/${task.taskId}`;
-  let bucket;
-  if (basePath.startsWith("s3://")) {
-    createMinioClientS3();
-  } else {
-    createMinioClient(basePath);
-  }
-  ({ bucket } = obtainBucketAndObjectName(basePath));
 
+  createMinioClient(basePath);
   const minioClient = getMinioClient();
-  //const { bucket } = obtainBucketAndObjectName(basePath);
+  const { bucket } = obtainBucketAndObjectName(basePath);
+
+  // Variables para taskId limpio y la parte removida
+  let cleanedTaskId = task.taskId;
+  let removedPart = "";
+
+  if (
+    task.type === "mapterasort" ||
+    task.type === "mapwordcount" ||
+    task.type === "reduceterasort" ||
+    task.type === "reducewordcount"
+  ) {
+    const regex = /-(mapper\d+|reducer[\w\d]*)$/;
+    const match = task.taskId.match(regex);
+    if (match) {
+      removedPart = match[1];
+      cleanedTaskId = task.taskId.replace(regex, "");
+    }
+  }
 
   try {
     await minioClient.makeBucket(bucket, "us-east-1");
@@ -100,14 +104,15 @@ export async function setSerializedResult(task, result) {
     console.log(`ℹ️ Bucket ${bucket} already exists, skipping creation.`);
   }
 
-  // we would do isPyProxy(result) to check if result is a Pyodide proxy object in case of removing json.dumps from map_terasort.py
   if (Array.isArray(result)) {
     console.log("WE ARE IN REDUCER TERASORT ARRAY");
-    // TERASORT REDUCER: result is an array
     const urls = [];
     for (let i = 0; i < result.length; i++) {
       const reducerResult = result[i];
-      const objectName = `${task.numWorker}-${i}.txt`;
+      // Construimos el objectName con cleanedTaskId, removedPart y numWorker-i
+      const objectName = `${task.clientId}/${cleanedTaskId}/${removedPart}/${
+        task.numWorker || 0
+      }-${i}.txt`;
 
       console.log(
         `📦 Storing reducer result in Minio: ${basePath}/${objectName}`
@@ -115,7 +120,7 @@ export async function setSerializedResult(task, result) {
       try {
         await minioClient.putObject(
           bucket,
-          `${task.taskId}/${objectName}`,
+          objectName,
           Buffer.from(reducerResult),
           reducerResult.length,
           "application/json"
@@ -126,18 +131,19 @@ export async function setSerializedResult(task, result) {
         throw e;
       }
     }
-    return urls; // Optional: returns all URLs
+    return urls;
   } else {
     console.log("WE ARE WHERE WE SHOULD NOT BE");
-    // NORMAL CASE
-    const numWorker = task.numWorker || 0; // Default to 0 if not provided
-    const objectName = `${numWorker}.txt`;
+    const basePath = `${task.clientId}/${cleanedTaskId}`;
+    const finalPath = removedPart ? `${basePath}/${removedPart}` : basePath;
+
+    const objectName = `${finalPath}/${task.numWorker || 0}.txt`;
 
     console.log(`📦 Storing result in Minio: ${basePath}/${objectName}`);
     try {
       await minioClient.putObject(
         bucket,
-        `${task.taskId}/${objectName}`,
+        objectName,
         Buffer.from(result),
         result.length,
         "application/json"

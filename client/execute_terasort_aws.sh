@@ -1,0 +1,1 @@
+node client/src/main.mjs --config client/configs/mapreduce_terasort_aws.json --orch http://ec2-16-16-92-7.eu-north-1.compute.amazonaws.com:3000

@@ -79,13 +79,34 @@ export async function setSerializedResult(task, result) {
   const bucket = obtainBucketName(STORAGE_ORCH);
   const client = getAwsS3Client();
 
-  // AWS S3 no necesita crear buckets si ya existen, pero puedes usar createBucket si quieres
-  // Aquí asumimos bucket existe
+  let cleanedTaskId = task.taskId;
+  let removedPart = "";
+
+  // Regex para mapreduce o reduce al final
+  if (
+    task.type === "mapterasort" ||
+    task.type === "mapwordcount" ||
+    task.type === "reduceterasort" ||
+    task.type === "reducewordcount"
+  ) {
+    // Busca y captura la parte final -mapperX o -reducerX (X puede ser dígito o cualquier cadena)
+    const regex = /-(mapper\d+|reducer[\w\d]*)$/;
+    const match = task.taskId.match(regex);
+
+    if (match) {
+      removedPart = match[1]; // la parte que se eliminó (mapperX o reducerX)
+      cleanedTaskId = task.taskId.replace(regex, "");
+    }
+  }
 
   if (Array.isArray(result)) {
     const urls = [];
     for (let i = 0; i < result.length; i++) {
-      const objectName = `${task.taskId}/${task.numWorker}-${i}.txt`;
+      // Construimos el path con cleanedTaskId / removedPart / task.numWorker-i.txt
+      const objectName = `${task.clientId}/${cleanedTaskId}/${removedPart}/${
+        task.numWorker || 0
+      }-${i}.txt`;
+
       await client.send(
         new PutObjectCommand({
           Bucket: bucket,
@@ -94,11 +115,16 @@ export async function setSerializedResult(task, result) {
           ContentType: "application/json",
         })
       );
-      urls.push(`${STORAGE_ORCH}/${task.taskId}/${task.numWorker}-${i}.txt`);
+
+      urls.push(`${STORAGE_ORCH}/${objectName}`);
     }
     return urls;
   } else {
-    const objectName = `${task.taskId}/${task.numWorker || 0}.txt`;
+    const basePath = `${task.clientId}/${cleanedTaskId}`;
+    const finalPath = removedPart ? `${basePath}/${removedPart}` : basePath;
+
+    const objectName = `${finalPath}/${task.numWorker || 0}.txt`;
+
     await client.send(
       new PutObjectCommand({
         Bucket: bucket,
@@ -107,6 +133,7 @@ export async function setSerializedResult(task, result) {
         ContentType: "application/json",
       })
     );
-    return `${STORAGE_ORCH}/${task.taskId}/${task.numWorker || 0}.txt`;
+
+    return `${STORAGE_ORCH}/${objectName}`;
   }
 }

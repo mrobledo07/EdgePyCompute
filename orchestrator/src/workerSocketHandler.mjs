@@ -382,7 +382,7 @@ export function handleWorkerSocket(ws, workerId) {
         if (clientRegistry.allTasksExecuted(msg.clientId)) {
           const clientTasks = clientRegistry.getClientTasks(msg.clientId);
           const taskIds = clientTasks.map((task) => task.taskId);
-          taskQueue.removeClientTasks(taskIds); // remove in case tasks are still pending
+          taskQueue.remove(taskIds); // remove in case tasks are still pending
           clientRegistry.removeClient(msg.clientId);
 
           console.log(`✅ All tasks for client ${msg.clientId} completed.`);

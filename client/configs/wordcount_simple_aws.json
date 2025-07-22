@@ -1,0 +1,9 @@
+{
+  "type": "wordcount",
+  "code": [
+    "client/codes/map_wordcount.py"
+  ],
+  "args": [
+    ["s3://clientbucketforstoringinputs/example1.txt"]
+  ]
+}
