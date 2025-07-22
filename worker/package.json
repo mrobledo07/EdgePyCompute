@@ -13,6 +13,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.850.0",
     "axios": "^1.9.0",
+    "dotenv": "^17.2.0",
     "express": "^5.1.0",
     "minio": "^8.0.5",
     "pyodide": "^0.27.5"

@@ -10,7 +10,7 @@ NUM_WORKERS=$1
 
 # Run worker scripts in parallel
 for ((i=1; i<=NUM_WORKERS; i++)); do
-    node worker/src/main.mjs &
+    node worker/src/main.mjs --orch local &
 done
 
 # Wait for all background processes to finish

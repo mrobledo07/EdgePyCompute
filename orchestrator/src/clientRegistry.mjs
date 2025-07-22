@@ -72,6 +72,7 @@ class ClientRegistry {
     return Array.from(client.tasks.entries()).map(([taskId, info]) => ({
       taskId,
       clientId,
+      ...info, // Aquí se incluye toda la información de la tarea
     }));
   }
 

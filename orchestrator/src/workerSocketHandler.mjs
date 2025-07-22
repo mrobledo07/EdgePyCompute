@@ -324,53 +324,58 @@ export function handleWorkerSocket(ws, workerId) {
       //   writeTime,
       //   endTime,
       // };
-      if (client?.ws) {
-        let metadata, jsonToSend;
-        if (clientTask.subTasksResults.length > 0) {
-          metadata = clientTask.subTasksResults.reduce((acc, curr) => {
-            return { ...acc, ...curr };
-          }, {});
-          //metadata = JSON.stringify(metadata);
-          //console.log("WE ARE IN MAPREDUCE JSONTOSEND:", metadata);
-          jsonToSend = {
-            message_type: "task_result",
-            type: clientTask.type,
-            numMappers: clientTask.numMappers,
-            numReducers: clientTask.numReducers,
-            taskId: cleanedTaskId,
-            status: msg.status,
-            result: results,
-            metadata,
-          };
-          //console.log("JSONTOSEND:", jsonToSend);
+      let metadata, jsonToSend;
+      if (clientTask.subTasksResults.length > 0) {
+        metadata = clientTask.subTasksResults.reduce((acc, curr) => {
+          return { ...acc, ...curr };
+        }, {});
+        //metadata = JSON.stringify(metadata);
+        //console.log("WE ARE IN MAPREDUCE JSONTOSEND:", metadata);
+        jsonToSend = {
+          message_type: "task_result",
+          type: clientTask.type,
+          numMappers: clientTask.numMappers,
+          numReducers: clientTask.numReducers,
+          taskId: cleanedTaskId,
+          status: msg.status,
+          result: results,
+          metadata,
+        };
+        //console.log("JSONTOSEND:", jsonToSend);
 
-          //console.log("METADATA MAPREDUCE:", metadata);
-        } else {
-          metadata = {
-            [msg.taskId]: [
-              parseFloat(msg.initTime) || 0,
-              parseFloat(msg.readTime) || 0,
-              parseFloat(msg.cpuTime) || 0,
-              parseFloat(msg.writeTime) || 0,
-              parseFloat(msg.endTime) || 0,
-            ],
-          };
-          //metadata = JSON.stringify(metadata);
-          //console.log("WE ARE IN NOO !! MAPREDUCE JSONTOSEND:", metadata);
-          jsonToSend = {
-            message_type: "task_result",
-            type: clientTask.type,
-            taskId: cleanedTaskId,
-            status: msg.status,
-            result: results,
-            metadata,
-          };
-          //console.log("JSONTOSEND:", jsonToSend);
-          //console.log("METADATA:", metadata);
-        }
+        //console.log("METADATA MAPREDUCE:", metadata);
+      } else {
+        metadata = {
+          [msg.taskId]: [
+            parseFloat(msg.initTime) || 0,
+            parseFloat(msg.readTime) || 0,
+            parseFloat(msg.cpuTime) || 0,
+            parseFloat(msg.writeTime) || 0,
+            parseFloat(msg.endTime) || 0,
+          ],
+        };
+        //metadata = JSON.stringify(metadata);
+        //console.log("WE ARE IN NOO !! MAPREDUCE JSONTOSEND:", metadata);
+        jsonToSend = {
+          message_type: "task_result",
+          type: clientTask.type,
+          taskId: cleanedTaskId,
+          status: msg.status,
+          result: results,
+          metadata,
+        };
+        //console.log("JSONTOSEND:", jsonToSend);
+        //console.log("METADATA:", metadata);
+      }
+
+      if (client?.ws) {
         client.ws.send(JSON.stringify(jsonToSend));
         console.log(`📦 Before sending: numTasks = ${client.numTasks}`);
-
+        clientRegistry.setClientTask(msg.clientId, cleanedTaskId, {
+          ...clientTask,
+          ...jsonToSend,
+          sent: true,
+        });
         console.log(
           `📦 Sent result for task ${cleanedTaskId} to client ${msg.clientId}. Remaining tasks: ${client.numTasks}`
         );
@@ -389,6 +394,11 @@ export function handleWorkerSocket(ws, workerId) {
         console.error(
           `❌ Client ${msg.clientId} for task ${msg.taskId} not found or disconnected.`
         );
+        clientRegistry.setClientTask(msg.clientId, cleanedTaskId, {
+          ...clientTask,
+          ...jsonToSend,
+          sent: false,
+        });
       }
     }
 

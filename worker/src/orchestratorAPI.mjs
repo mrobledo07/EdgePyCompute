@@ -1,7 +1,7 @@
 import axios from "axios";
 import WebSocket from "ws";
 import { executeTask } from "./taskExecutor.mjs";
-import { HTTP_ORCH, WS_ORCH } from "./configMinio.mjs";
+
 import { Stopwatch } from "./stopWatch.mjs";
 
 let workerId;
@@ -11,7 +11,7 @@ let stopWatch;
 //let retryAttempts = 0;
 //const MAX_RETRIES = 3;
 
-export async function registerWorker() {
+export async function registerWorker(HTTP_ORCH, WS_ORCH) {
   try {
     const { data } = await axios.post(`${HTTP_ORCH}/register_worker`, {
       numWorkers: 1,

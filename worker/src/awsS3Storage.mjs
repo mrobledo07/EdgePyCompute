@@ -1,34 +1,14 @@
 import {
-  S3Client,
   GetObjectCommand,
   HeadObjectCommand,
   PutObjectCommand,
 } from "@aws-sdk/client-s3";
+import {
+  createAwsS3Client,
+  getAwsS3Client,
+  obtainBucketAndObjectName,
+} from "./awsS3Client.mjs";
 import { STORAGE_ORCH } from "./configAWS.mjs";
-
-let s3Client;
-
-export function createAwsS3Client() {
-  s3Client = new S3Client({
-    region: "eu-north-1",
-    credentials: {
-      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-    },
-  });
-}
-
-export function getAwsS3Client() {
-  if (!s3Client) throw new Error("AWS S3 client not initialized");
-  return s3Client;
-}
-
-export function obtainBucketAndObjectName(fileUrl) {
-  const parsed = new URL(fileUrl);
-  const bucket = parsed.hostname.split(".")[0]; // bucket from URL like bucket.s3.region.amazonaws.com
-  const objectName = parsed.pathname.slice(1); // remove leading /
-  return { bucket, objectName };
-}
 
 export async function getTextFromS3(fileUrl, offset = -1, numMappers = -1) {
   createAwsS3Client();
