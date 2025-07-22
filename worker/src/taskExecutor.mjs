@@ -1,28 +1,46 @@
 import {
   getTextFromMinio,
   getPartialObjectMinio,
-  getSerializedResults,
-  setSerializedResult,
+  getSerializedResults as getSerializedResultsMinio,
+  setSerializedResult as setSerializedResultMinio,
 } from "./minioStorage.mjs";
+
+import {
+  getTextFromS3,
+  getPartialObjectS3,
+  getSerializedResults as getSerializedResultsS3,
+  setSerializedResult as setSerializedResultS3,
+} from "./awsS3Storage.mjs"; // <-- asegúrate de tener estas funciones definidas como en la respuesta anterior
+
 import { getPyodide } from "./pyodideRuntime.mjs";
 
 export async function executeTask(task, ws, stopWatch) {
   const pyodide = getPyodide();
   stopWatch.start();
-  const initTime = Date.now() / 1000; // Convert to seconds
+  const initTime = Date.now() / 1000;
   let readTime = null;
   let cpuTime = null;
   let writeTime = null;
   let endTime = null;
+
   try {
     console.log("RECEIVING CLIENT ID:", task.clientId);
     let bytes;
+
+    const isS3 = (url) => {
+      if (Array.isArray(url)) {
+        return url.every((u) => typeof u === "string" && u.startsWith("s3://"));
+      }
+      return typeof url === "string" && url.startsWith("s3://");
+    };
+
     if (task.type === "mapwordcount" || task.type === "mapterasort") {
       console.log(
         `🔍 Getting partial object for MAPPER task ${task.arg}:${task.taskId}`
       );
-      //
-      bytes = await getPartialObjectMinio(task);
+      bytes = isS3(task.arg)
+        ? await getPartialObjectS3(task)
+        : await getPartialObjectMinio(task);
     } else if (
       task.type === "reducewordcount" ||
       task.type === "reduceterasort"
@@ -30,25 +48,26 @@ export async function executeTask(task, ws, stopWatch) {
       console.log(
         `🔍 Getting serialized results for REDUCER task ${task.arg}:${task.taskId}`
       );
-      bytes = await getSerializedResults(task.arg);
+
+      bytes = isS3(task.arg)
+        ? await getSerializedResultsS3(task.arg)
+        : await getSerializedResultsMinio(task.arg);
     } else {
       console.log(
-        `🔍 Getting full object for task ${task.arg}:${task.taskId} (not
-        map or reduce)`
+        `🔍 Getting full object for task ${task.arg}:${task.taskId} (not map or reduce)`
       );
-      bytes = await getTextFromMinio(task.arg);
+      bytes = isS3(task.arg)
+        ? await getTextFromS3(task.arg)
+        : await getTextFromMinio(task.arg);
     }
 
     let rawBytesLine;
     if (task.type === "reduceterasort" || task.type === "reducewordcount") {
-      // Reducer: arg es un JSON‐string con ["b64part1","b64part2",...]
-      // Pasamos esa cadena TEXTUAL directamente a Python
       rawBytesLine = `raw_bytes = ${JSON.stringify(bytes)}`;
       console.log(
         `🔍 raw_bytes for REDUCER task ${task.taskId} is: ${rawBytesLine}`
       );
     } else {
-      // Map: bytes es un Buffer → lo pasamos como Base64 y DECODIFICAMOS en Python
       const b64 = bytes.toString("base64");
       rawBytesLine = `raw_bytes = base64.b64decode("${b64}")`;
     }
@@ -56,7 +75,6 @@ export async function executeTask(task, ws, stopWatch) {
     const roundTo4 = (num) => Math.round(num * 10000) / 10000;
 
     stopWatch.stop();
-    //let ioTime = parseFloat(stopWatch.getDuration().toFixed(4));
     readTime = roundTo4(stopWatch.getDuration());
 
     const pyScript = `
@@ -67,25 +85,15 @@ try:
 except Exception as e:
     result = str(e)
 result
-      `;
-    // console.log(
-    //   `📜 Executing task task ${task.taskId} from client ${task.clientId} with arg ${task.arg} and with code:\n${pyScript}`
-    // );
+    `;
+
     console.log(
       `📜 Executing task ${task.taskId} from client ${task.clientId} with arg ${task.arg}`
     );
-    //sleep for 3 seconds to simulate a long task
-    // await new Promise((resolve) => setTimeout(resolve, 3000));
 
     stopWatch.start();
-
     let result = await pyodide.runPythonAsync(pyScript);
-    // console.log(
-    //   `✔️ Completed task ${task.taskId} from client ${task.clientId} with arg ${task.arg}`,
-    //   result
-    // );
     stopWatch.stop();
-    //const cpuTime = parseFloat(stopWatch.getDuration().toFixed(4));
     cpuTime = roundTo4(stopWatch.getDuration());
 
     console.log(
@@ -96,19 +104,16 @@ result
       result = JSON.parse(result);
     }
 
-    //console.log("🔍 typeof result:", typeof result);
-    //console.log("🔍 instanceof Array:", result instanceof Array);
-    // console.log("🔍 isPyProxy:", isPyProxy(result));
-
     stopWatch.start();
-    const resultURL = await setSerializedResult(task, result);
+
+    const resultURL = isS3(task.arg)
+      ? await setSerializedResultS3(task, result)
+      : await setSerializedResultMinio(task, result);
+
     stopWatch.stop();
-    //ioTime += parseFloat(stopWatch.getDuration().toFixed(4));
     writeTime = roundTo4(stopWatch.getDuration());
+    endTime = Date.now() / 1000;
 
-    endTime = Date.now() / 1000; // Convert to seconds
-
-    // Create resultUrl
     ws.send(
       JSON.stringify({
         clientId: task.clientId,
@@ -127,10 +132,7 @@ result
       `❌ Error on task ${task.taskId} from client ${task.clientId} with arg ${task.arg}`,
       e.message
     );
-    console.error(
-      `❌ Error on task ${task.taskId} from client ${task.clientId} with arg ${task.arg}`,
-      e
-    );
+    console.error(e);
     ws.send(
       JSON.stringify({
         clientId: task.clientId,

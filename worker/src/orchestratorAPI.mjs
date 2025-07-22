@@ -1,7 +1,7 @@
 import axios from "axios";
 import WebSocket from "ws";
 import { executeTask } from "./taskExecutor.mjs";
-import { HTTP_ORCH, WS_ORCH } from "./config.mjs";
+import { HTTP_ORCH, WS_ORCH } from "./configMinio.mjs";
 import { Stopwatch } from "./stopWatch.mjs";
 
 let workerId;

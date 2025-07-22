@@ -1,12 +1,10 @@
 import {
   getMinioClient,
   createMinioClient,
-  createMinioClientS3,
   obtainBucketAndObjectName,
-  obtainBucketAndObjectNameS3,
 } from "./minioClient.mjs";
 
-import { STORAGE_ORCH } from "./config.mjs";
+import { STORAGE_ORCH } from "./configMinio.mjs";
 
 export async function getTextFromMinio(fileUrl, offset = -1, numMappers = -1) {
   createMinioClient(fileUrl);
