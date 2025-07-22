@@ -1,10 +1,10 @@
 {
-  "type": "mapreduceterasort",
+  "type": "mapreducewordcount",
   "code": [
-    "client/codes/map_terasort.py",
-    "client/codes/reduce_terasort.py"
+    "client/codes/map_wordcount.py",
+    "client/codes/reduce_wordcount.py"
   ],
   "args": [
-    ["s3://clientbucketforstoringinputs/example1.txt", 1, 5]
+    ["s3://clientbucketforstoringinputs/example1.txt", 3, 5]
   ]
 }

@@ -7,6 +7,7 @@ import {
   createAwsS3Client,
   getAwsS3Client,
   obtainBucketAndObjectName,
+  obtainBucketName,
 } from "./awsS3Client.mjs";
 import { STORAGE_ORCH } from "./configAWS.mjs";
 
@@ -75,7 +76,7 @@ export async function setSerializedResult(task, result) {
   createAwsS3Client();
 
   // Use STORAGE_ORCH as base URL, assuming like "https://bucket.s3.region.amazonaws.com"
-  const { bucket } = obtainBucketAndObjectName(STORAGE_ORCH);
+  const bucket = obtainBucketName(STORAGE_ORCH);
   const client = getAwsS3Client();
 
   // AWS S3 no necesita crear buckets si ya existen, pero puedes usar createBucket si quieres
