@@ -1,15 +1,26 @@
 import {
   getMinioClient,
   createMinioClient,
+  createMinioClientS3,
   obtainBucketAndObjectName,
+  obtainBucketAndObjectNameS3,
 } from "./minioClient.mjs";
 
 import { STORAGE_ORCH } from "./config.mjs";
 
 export async function getTextFromMinio(fileUrl, offset = -1, numMappers = -1) {
   createMinioClient(fileUrl);
+  let bucket, objectName;
+  if (fileUrl.startsWith("s3://")) {
+    createMinioClientS3();
+    ({ bucket, objectName } = obtainBucketAndObjectNameS3(fileUrl));
+  } else {
+    createMinioClient(fileUrl);
+    ({ bucket, objectName } = obtainBucketAndObjectName(fileUrl));
+  }
   const minioClient = getMinioClient();
-  const { bucket, objectName } = obtainBucketAndObjectName(fileUrl);
+
+  //const { bucket, objectName } = obtainBucketAndObjectName(fileUrl);
   let stream;
   if (offset == -1) {
     stream = await minioClient.getObject(bucket, objectName);
@@ -70,9 +81,16 @@ export async function getSerializedResults(results) {
 
 export async function setSerializedResult(task, result) {
   const basePath = `${STORAGE_ORCH}/${task.clientId}/${task.taskId}`;
-  createMinioClient(basePath);
+  let bucket;
+  if (basePath.startsWith("s3://")) {
+    createMinioClientS3();
+  } else {
+    createMinioClient(basePath);
+  }
+  ({ bucket } = obtainBucketAndObjectName(basePath));
+
   const minioClient = getMinioClient();
-  const { bucket } = obtainBucketAndObjectName(basePath);
+  //const { bucket } = obtainBucketAndObjectName(basePath);
 
   try {
     await minioClient.makeBucket(bucket, "us-east-1");
