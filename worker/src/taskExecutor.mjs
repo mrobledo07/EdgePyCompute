@@ -77,9 +77,17 @@ export async function executeTask(task, ws, stopWatch) {
     stopWatch.stop();
     readTime = roundTo4(stopWatch.getDuration());
 
+    let extraPythonVars = "";
+    if (task.type === "mapterasort") {
+      console.log("MAPTERASORT");
+      console.log("NUM_PARTITIONS: ", task.numReducers);
+      extraPythonVars = `num_partitions = ${task.numReducers}`;
+    }
+
     const pyScript = `
 ${task.code}
 ${rawBytesLine}
+${extraPythonVars}
 try:
     result = task(raw_bytes)
 except Exception as e:
