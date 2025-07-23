@@ -10,8 +10,8 @@ WORKER_COUNT="$1"
 # Deploys N EC2 instances with S3 access and running a script at initialization
 # (shall connect to the orchestrator at initialization)
 INSTANCE_ROLE="MyEC2S3AccessRole"
-KEY_PAIR_NAME="<pem-key-name>" # Use your .pem key name
-AMI_ID="<worker_ami_id>" # Use the worker AMI ID
+KEY_PAIR_NAME="worker-keys" # Use your .pem key name
+AMI_ID="ami-066e38ee0e6aec85f" # Use the worker AMI ID
 INSTANCE_TYPE="t3.micro"
 
 aws ec2 run-instances \

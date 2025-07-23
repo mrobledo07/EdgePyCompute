@@ -5,7 +5,8 @@
 # Define variables
 ROLE_NAME="MyEC2S3AccessRole"
 POLICY_NAME="MyS3AccessPolicy"
-BUCKET_NAME="<pyedgecompute-bucket>" # Replace with bucket name
+BUCKET_NAME_CLIENT="clientbucketforstoringinputs"
+BUCKET_NAME_ORCH="orchestratorfororchestratingworkers" # Replace with bucket name
 REGION="us-north-1"
 
 # 1. Create a trust policy for the EC2 service
@@ -54,8 +55,10 @@ cat <<EOF > s3-custom-policy.json
         "s3:HeadObject"
       ],
       "Resource": [
-        "arn:aws:s3:::$BUCKET_NAME",
-        "arn:aws:s3:::$BUCKET_NAME/*"
+        "arn:aws:s3:::$BUCKET_NAME_CLIENT",
+        "arn:aws:s3:::$BUCKET_NAME_CLIENT/*",
+        "arn:aws:s3:::$BUCKET_NAME_ORCH",
+        "arn:aws:s3:::$BUCKET_NAME_ORCH/*"
       ]
     }
   ]

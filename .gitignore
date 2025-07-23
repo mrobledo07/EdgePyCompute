@@ -5,3 +5,6 @@ worker/.env
 # Intermediary data
 data/part*
 data/sort*
+
+orchestrator-keys.pem
+worker-keys.pem

@@ -141,9 +141,9 @@ export function connectToWebSocket(
 
       switch (task.message_type) {
         case "task_result":
-          stopwatches[tasksExecuted].stop();
+          stopwatches[tasksExecuted]?.stop();
           const executionTimeClient = parseFloat(
-            stopwatches[tasksExecuted].getDuration().toFixed(4)
+            stopwatches[tasksExecuted]?.getDuration().toFixed(4)
           );
           tasksExecuted++;
           //const roundTo4 = (num) => Math.round(num * 10000) / 10000;

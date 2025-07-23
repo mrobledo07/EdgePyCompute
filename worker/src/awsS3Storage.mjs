@@ -80,61 +80,58 @@ export async function setSerializedResult(task, result) {
   const bucket = obtainBucketName(CONFIG.STORAGE);
   const client = getAwsS3Client();
 
+  // 1) Limpiar el taskId de su sufijo mapper/reducer
   let cleanedTaskId = task.taskId;
-  let removedPart = "";
-
-  // Regex para mapreduce o reduce al final
-  if (
-    task.type === "mapterasort" ||
-    task.type === "mapwordcount" ||
-    task.type === "reduceterasort" ||
-    task.type === "reducewordcount"
-  ) {
-    // Busca y captura la parte final -mapperX o -reducerX (X puede ser dígito o cualquier cadena)
-    const regex = /-(mapper\d+|reducer[\w\d]*)$/;
-    const match = task.taskId.match(regex);
-
-    if (match) {
-      removedPart = match[1]; // la parte que se eliminó (mapperX o reducerX)
-      cleanedTaskId = task.taskId.replace(regex, "");
-    }
+  let suffix = "";
+  const m = task.taskId.match(/-(mapper\d+|reducer[\w\d]*)$/);
+  if (m) {
+    suffix = m[1];
+    cleanedTaskId = task.taskId.replace(/-(mapper\d+|reducer[\w\d]*)$/, "");
   }
+
+  const makeKey = (filename) => {
+    return [
+      task.clientId, // <— Aquí va siempre clientId
+      cleanedTaskId, // luego el taskId "limpio"
+      suffix, // opcional mapperX/reducerY
+      filename, // "0-0.txt" o "0.txt"
+    ]
+      .filter(Boolean)
+      .join("/");
+  };
 
   if (Array.isArray(result)) {
     const urls = [];
     for (let i = 0; i < result.length; i++) {
-      // Construimos el path con cleanedTaskId / removedPart / task.numWorker-i.txt
-      const objectName = `${task.clientId}/${cleanedTaskId}/${removedPart}/${
-        task.numWorker || 0
-      }-${i}.txt`;
+      // Construimos el path con cleanedTaskId / suffix / task.numWorker-i.txt
+      const filename = `${task.numWorker || 0}-${i}.txt`;
+      const key = makeKey(filename);
 
       await client.send(
         new PutObjectCommand({
           Bucket: bucket,
-          Key: objectName,
+          Key: key,
           Body: Buffer.from(result[i]),
           ContentType: "application/json",
         })
       );
 
-      urls.push(`${CONFIG.STORAGE}/${objectName}`);
+      urls.push(`${CONFIG.STORAGE}/${key}`);
     }
     return urls;
   } else {
-    const basePath = `${task.clientId}/${cleanedTaskId}`;
-    const finalPath = removedPart ? `${basePath}/${removedPart}` : basePath;
-
-    const objectName = `${finalPath}/${task.numWorker || 0}.txt`;
+    const filename = `${task.numWorker || 0}.txt`;
+    const key = makeKey(filename);
 
     await client.send(
       new PutObjectCommand({
         Bucket: bucket,
-        Key: objectName,
+        Key: key,
         Body: Buffer.from(result),
         ContentType: "application/json",
       })
     );
 
-    return `${CONFIG.STORAGE}/${objectName}`;
+    return `${CONFIG.STORAGE}/${key}`;
   }
 }

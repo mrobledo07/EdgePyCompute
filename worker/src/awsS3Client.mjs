@@ -1,16 +1,16 @@
 import { S3Client } from "@aws-sdk/client-s3";
-import "dotenv/config";
+//import "dotenv/config";
 
 let s3Client;
 
 export function createAwsS3Client() {
   s3Client = new S3Client({
     region: "eu-north-1",
-    credentials: {
-      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-      sessionToken: process.env.AWS_SESSION_TOKEN,
-    },
+    // credentials: {
+    //   accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    //   secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    //   sessionToken: process.env.AWS_SESSION_TOKEN,
+    // },
   });
 }
 

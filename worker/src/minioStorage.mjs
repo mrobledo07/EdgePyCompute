@@ -71,29 +71,30 @@ export async function getSerializedResults(results) {
 
 export async function setSerializedResult(task, result) {
   // Construimos la basePath con clientId y taskId original (se usará en URL de retorno)
-  const basePath = `${CONFIG.STORAGE}/${task.clientId}/${task.taskId}`;
+  const basePath = `${CONFIG.STORAGE}/${task.clientId}`;
 
   createMinioClient(basePath);
   const minioClient = getMinioClient();
   const { bucket } = obtainBucketAndObjectName(basePath);
 
-  // Variables para taskId limpio y la parte removida
+  // 1) Limpiar el taskId de su sufijo mapper/reducer
   let cleanedTaskId = task.taskId;
-  let removedPart = "";
-
-  if (
-    task.type === "mapterasort" ||
-    task.type === "mapwordcount" ||
-    task.type === "reduceterasort" ||
-    task.type === "reducewordcount"
-  ) {
-    const regex = /-(mapper\d+|reducer[\w\d]*)$/;
-    const match = task.taskId.match(regex);
-    if (match) {
-      removedPart = match[1];
-      cleanedTaskId = task.taskId.replace(regex, "");
-    }
+  let suffix = "";
+  const m = task.taskId.match(/-(mapper\d+|reducer[\w\d]*)$/);
+  if (m) {
+    suffix = m[1];
+    cleanedTaskId = task.taskId.replace(/-(mapper\d+|reducer[\w\d]*)$/, "");
   }
+
+  const makeKey = (filename) => {
+    return [
+      cleanedTaskId, // luego el taskId "limpio"
+      suffix, // opcional mapperX/reducerY
+      filename, // "0-0.txt" o "0.txt"
+    ]
+      .filter(Boolean)
+      .join("/");
+  };
 
   try {
     await minioClient.makeBucket(bucket, "us-east-1");
@@ -106,27 +107,22 @@ export async function setSerializedResult(task, result) {
   }
 
   if (Array.isArray(result)) {
-    console.log("WE ARE IN REDUCER TERASORT ARRAY");
     const urls = [];
     for (let i = 0; i < result.length; i++) {
       const reducerResult = result[i];
-      // Construimos el objectName con cleanedTaskId, removedPart y numWorker-i
-      const objectName = `${task.clientId}/${cleanedTaskId}/${removedPart}/${
-        task.numWorker || 0
-      }-${i}.txt`;
-
-      console.log(
-        `📦 Storing reducer result in Minio: ${basePath}/${objectName}`
-      );
+      // Construimos el objectName con cleanedTaskId, suffix y numWorker-i
+      const filename = `${task.numWorker || 0}-${i}.txt`;
+      const key = makeKey(filename);
+      console.log(`📦 Storing reducer result in Minio: ${basePath}/${key}`);
       try {
         await minioClient.putObject(
           bucket,
-          objectName,
+          key,
           Buffer.from(reducerResult),
           reducerResult.length,
           "application/json"
         );
-        urls.push(`${basePath}/${objectName}`);
+        urls.push(`${basePath}/${key}`);
       } catch (e) {
         console.error(`❌ Error storing reducer result [${i}]:`, e.message);
         throw e;
@@ -134,22 +130,19 @@ export async function setSerializedResult(task, result) {
     }
     return urls;
   } else {
-    console.log("WE ARE WHERE WE SHOULD NOT BE");
-    const basePath = `${task.clientId}/${cleanedTaskId}`;
-    const finalPath = removedPart ? `${basePath}/${removedPart}` : basePath;
+    const filename = `${task.numWorker || 0}.txt`;
+    const key = makeKey(filename);
 
-    const objectName = `${finalPath}/${task.numWorker || 0}.txt`;
-
-    console.log(`📦 Storing result in Minio: ${basePath}/${objectName}`);
+    console.log(`📦 Storing result in Minio: ${basePath}/${key}`);
     try {
       await minioClient.putObject(
         bucket,
-        objectName,
+        key,
         Buffer.from(result),
         result.length,
         "application/json"
       );
-      return `${basePath}/${objectName}`;
+      return `${basePath}/${key}`;
     } catch (e) {
       console.error(`❌ Error storing result in Minio:`, e.message);
       throw e;
