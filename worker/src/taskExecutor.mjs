@@ -77,6 +77,8 @@ export async function executeTask(task, ws, stopWatch) {
     stopWatch.stop();
     readTime = roundTo4(stopWatch.getDuration());
 
+    console.log("INPUT SIZE", bytes.length);
+
     let extraPythonVars = "";
     if (task.type === "mapterasort") {
       console.log("MAPTERASORT");
