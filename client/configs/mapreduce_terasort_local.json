@@ -5,6 +5,6 @@
     "client/codes/reduce_terasort.py"
   ],
   "args": [
-    ["http://localhost:9000/test/terasort-20m", 5, 5]
+    ["http://localhost:9000/test/terasort-20m", 1, 1]
   ]
 }

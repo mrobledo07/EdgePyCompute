@@ -99,6 +99,9 @@ result
       `📜 Executing task ${task.taskId} from client ${task.clientId} with arg ${task.arg}`
     );
 
+    console.log("CODE:");
+    console.log(pyScript);
+
     stopWatch.start();
     let result = await pyodide.runPythonAsync(pyScript);
     stopWatch.stop();

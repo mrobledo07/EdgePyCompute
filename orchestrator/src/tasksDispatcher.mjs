@@ -85,8 +85,18 @@ export function processTaskQueue() {
       taskInfo = {
         ...taskInfo,
         numMappers: task.numMappers,
+        numReducers: task.numReducers,
         numWorker: task.numWorker,
       };
+    }
+
+    if (taskInfo.type === "reduceterasort") {
+      const isAlreadyMatrix =
+        Array.isArray(task.arg) && Array.isArray(task.arg[0]);
+
+      if (!isAlreadyMatrix) {
+        taskInfo.arg = task.arg.map((el) => [el]);
+      }
     }
 
     dispatchTask(taskInfo);
@@ -117,7 +127,15 @@ export function dispatchTask(task) {
       return true;
     }
 
-    if (task.type === "reducewordcount" || task.type === "reduceterasort") {
+    const regex = /-(mapper\d+|reducer[\w\d]*)$/;
+
+    const match = task.taskId.match(regex);
+
+    // only dispatch reducers again if is a new reduce job
+    if (
+      (task.type === "reducewordcount" || task.type === "reduceterasort") &&
+      !match
+    ) {
       const ok = dispatchReducers(task);
       if (!ok) taskQueue.push({ clientId: task.clientId, taskId: task.taskId });
       return true;
