@@ -92,7 +92,7 @@ app.post("/register_task", (req, res) => {
       taskId,
       type,
       //stopwatch: sw,
-      executionTime: 0,
+      //executionTime: 0,
     });
     // console.log(
     //   ">> clients map keys after adding tasks:",

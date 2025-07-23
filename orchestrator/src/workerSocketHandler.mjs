@@ -20,14 +20,43 @@ export function handleWorkerSocket(ws, workerId) {
     // const worker = workers.find((w) => w.worker_id === workerId);
     const worker = workerRegistry.getWorkerById(workerId);
     if (worker && worker?.tasksAssignated.len > 0) {
-      const tasksworker = [...worker.tasksAssignated.map.values()];
-      const tasksArray = Array.from(worker.tasksAssignated.map.entries()).map(
-        ([taskId, clientId]) => ({ taskId, clientId })
-      );
-      taskQueue.push(tasksArray);
+      const requeuedTasks = [];
+      for (const [taskId, clientId] of worker.tasksAssignated.map.entries()) {
+        const regex = /-(mapper\d+|reducer[\w\d]*)$/;
+        const match = taskId.match(regex);
+        let taskObj = null;
+
+        if (match && match[0].length === taskId.length) {
+          // El sufijo ocupa todo el final => taskIdWithSuffix es una subtarea, no la principal
+          const mainTaskId = taskIdWithSuffix.replace(regex, "");
+          taskObj = clientRegistry.getClientSubTask(
+            clientId,
+            mainTaskId,
+            taskId
+          );
+        } else {
+          // No tiene sufijo => es la tarea principal
+          taskObj = clientRegistry.getClientTask(clientId, taskId);
+        }
+
+        if (taskObj) {
+          const requeuedTask = {
+            taskId,
+            clientId,
+          };
+          requeuedTasks.push(`${requeuedTask.clientId}:${requeuedTask.taskId}`);
+          taskQueue.push(requeuedTask);
+          console.log(`🔁 Re-queued task: ${clientId}:${taskId}`);
+        } else {
+          console.warn(
+            `⚠️ Could not find task or subtask ${taskId} for client ${clientId}`
+          );
+        }
+      }
+
       console.log(
-        "Tasks re-queued from disconnected worker:",
-        tasksworker.map((t) => `${t.arg}:${t.taskId}`)
+        `🔄 Re-queued tasks from disconnected worker ${workerId}:`,
+        requeuedTasks
       );
     }
     workerRegistry.removeWorker(workerId);
@@ -295,7 +324,7 @@ export function handleWorkerSocket(ws, workerId) {
         console.error(
           `❌ Error in task ${msg.taskId} from worker ${workerId}: ${msg.result}`
         );
-        clientRegistry.markTaskError(msg.clientId, msg.taskId, msg.result);
+        clientRegistry.markTaskError(msg.clientId, cleanedTaskId, msg.result);
       }
 
       // console.log(

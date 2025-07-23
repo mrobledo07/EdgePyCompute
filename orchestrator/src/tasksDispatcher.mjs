@@ -14,7 +14,34 @@ export function processTaskQueue() {
     workerRegistry.getTotalAvailableWorkers() > 0
   ) {
     const next = taskQueue.peek(); // Peek
-    const nextTask = clientRegistry.getClientTask(next.clientId, next.taskId);
+
+    const { clientId, taskId } = next;
+    const regex = /-(mapper\d+|reducer[\w\d]*)$/;
+
+    const match = taskId.match(regex);
+
+    let task = null;
+    let mainTaskId = taskId;
+
+    if (match && match[0].length === taskId.length) {
+      // Subtask case
+      mainTaskId = taskId.replace(regex, "");
+      task = clientRegistry.getClientSubTask(clientId, mainTaskId, taskId);
+    } else {
+      // Main task case
+      task = clientRegistry.getClientTask(clientId, taskId);
+    }
+
+    if (!task) {
+      console.warn(
+        `⚠️ Task not found for client ${clientId} with ID ${taskId}`
+      );
+      // Optional: remove from queue to avoid blocking
+      taskQueue.shift();
+      continue;
+    }
+
+    //const nextTask = clientRegistry.getClientTask(next.clientId, next.taskId);
     const numAvailableWorkers = workerRegistry.getTotalAvailableWorkers();
 
     const canDispatch = (() => {
@@ -43,9 +70,8 @@ export function processTaskQueue() {
       );
       break;
     }
-
-    const { clientId, taskId } = taskQueue.shift(); // Remove from queue
-    const task = clientRegistry.getClientTask(clientId, taskId);
+    // Now remove the task from the queue
+    taskQueue.shift();
     const taskInfo = {
       clientId,
       taskId,
@@ -53,7 +79,18 @@ export function processTaskQueue() {
       arg: task.arg,
       type: task.type,
     };
+
     dispatchTask(taskInfo);
+    //const { clientId, taskId } = taskQueue.shift(); // Remove from queue
+    // const task = clientRegistry.getClientTask(clientId, taskId);
+    // const taskInfo = {
+    //   clientId,
+    //   taskId,
+    //   code: task.code,
+    //   arg: task.arg,
+    //   type: task.type,
+    // };
+    // dispatchTask(taskInfo);
   }
 }
 
@@ -157,6 +194,7 @@ function dispatchMappers(task) {
       taskId: `${task.taskId}-mapper${i}`,
       numWorker: worker.worker_num,
     };
+    clientRegistry.addSubTask(task.clientId, task.taskId, individualTask);
     const clientTask = clientRegistry.getClientTask(task.clientId, task.taskId);
     const taskClient = {
       ...clientTask,
@@ -223,6 +261,7 @@ function dispatchReducers(task) {
         arg: reducerArgs,
         numWorker: workersAvailable[r].worker_num,
       };
+      clientRegistry.addSubTask(task.clientId, task.taskId, reducerTask);
 
       //clientRegistry.addTask(`${task.taskId}-reducer${r}`, reducerTask);
       reserveWorkerAndSendTask(workersAvailable[r], reducerTask);

@@ -30,6 +30,7 @@ class ClientRegistry {
         numPendingTasks: numTasks,
         tasks: new Map(),
       });
+      console.log(`REGISTERED CLIENT ${clientId} with ${numTasks} tasks`);
     } finally {
       this.unlock();
     }
@@ -89,9 +90,37 @@ class ClientRegistry {
         state: "pending",
         assignedWorkers: new Map(),
         subTasksResults: [],
+        subTasks: [],
         //stopwatch: task.stopwatch,
         //executionTime: task.executionTime || 0,
       });
+      console.log(`Added task ${task} to client ${clientId}`);
+      console.log(client.tasks);
+    } finally {
+      this.unlock();
+    }
+  }
+
+  addSubTask(clientId, taskId, subTask) {
+    this.lock();
+    try {
+      const client = this.clients.get(clientId);
+      if (!client) {
+        console.error(`❌ Client ${clientId} not found`);
+        return;
+      }
+
+      const mainTask = client.tasks.get(taskId);
+      if (!mainTask) {
+        console.error(`❌ Task ${taskId} not found for client ${clientId}`);
+        return;
+      }
+
+      // Añadir la subtarea al array
+      mainTask.subTasks.push(subTask);
+      console.log(
+        `➕ Added subtask ${subTask.taskId} to ${taskId} of client ${clientId}`
+      );
     } finally {
       this.unlock();
     }
@@ -155,6 +184,21 @@ class ClientRegistry {
     const client = this.clients.get(clientId);
     if (!client) return null;
     return client.tasks.get(taskId);
+  }
+
+  getClientSubTask(clientId, taskId, subTaskId) {
+    if (this.isLocked) throw new Error("ClientRegistry is locked.");
+
+    const client = this.clients.get(clientId);
+    if (!client) return null;
+
+    const mainTask = client.tasks.get(taskId);
+    if (!mainTask) return null;
+
+    return (
+      mainTask.subTasks.find((subTask) => subTask.subTaskId === subTaskId) ||
+      null
+    );
   }
 
   setClientTask(clientId, taskId, taskInfo) {

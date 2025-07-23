@@ -63,7 +63,10 @@ class WorkerRegistry {
     if (!worker) return false;
     worker.tasksAssignated.map.set(taskId, clientId);
     worker.tasksAssignated.len++;
-
+    console.log(
+      `ASSIGNATED TASK ${taskId} from ${clientId} to worker ${worker_id}`
+    );
+    console.log(worker.tasksAssignated);
     this.updateAvailability(worker_id, worker.availableWorkers - 1);
     return true;
   }
