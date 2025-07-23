@@ -23,7 +23,7 @@ export function processTaskQueue() {
     let task = null;
     let mainTaskId = taskId;
 
-    if (match && match[0].length === taskId.length) {
+    if (match) {
       // Subtask case
       mainTaskId = taskId.replace(regex, "");
       task = clientRegistry.getClientSubTask(clientId, mainTaskId, taskId);
@@ -41,23 +41,23 @@ export function processTaskQueue() {
       continue;
     }
 
-    //const nextTask = clientRegistry.getClientTask(next.clientId, next.taskId);
+    //const task = clientRegistry.getClientTask(next.clientId, next.taskId);
     const numAvailableWorkers = workerRegistry.getTotalAvailableWorkers();
 
     const canDispatch = (() => {
       if (
-        nextTask.type === "mapreducewordcount" ||
-        nextTask.type === "mapreduceterasort"
+        task.type === "mapreducewordcount" ||
+        task.type === "mapreduceterasort"
       ) {
-        console.log(`Mappers needed: ${nextTask.arg[1]}`);
+        console.log(`Mappers needed: ${task.arg[1]}`);
         console.log(`Available workers: ${numAvailableWorkers}`);
-        return numAvailableWorkers >= nextTask.arg[1]; // num mappers
+        return numAvailableWorkers >= task.arg[1]; // num mappers
       }
 
-      if (nextTask.type === "reduceterasort") {
-        console.log(`Reducers needed: ${nextTask.numReducers}`);
+      if (task.type === "reduceterasort") {
+        console.log(`Reducers needed: ${task.numReducers}`);
         console.log(`Available workers: ${numAvailableWorkers}`);
-        return numAvailableWorkers >= nextTask.numReducers;
+        return numAvailableWorkers >= task.numReducers;
       }
 
       console.log(`Available workers: ${numAvailableWorkers}`);
@@ -66,19 +66,28 @@ export function processTaskQueue() {
 
     if (!canDispatch) {
       console.log(
-        `🕒 No available workers. Task "${nextTask.arg}:${next.taskId}" remains in queue.`
+        `🕒 No available workers. Task "${task.arg}:${next.taskId}" remains in queue.`
       );
       break;
     }
     // Now remove the task from the queue
     taskQueue.shift();
-    const taskInfo = {
+    let taskInfo;
+    taskInfo = {
       clientId,
       taskId,
       code: task.code,
       arg: task.arg,
       type: task.type,
     };
+
+    if (match) {
+      taskInfo = {
+        ...taskInfo,
+        numMappers: task.numMappers,
+        numWorker: task.numWorker,
+      };
+    }
 
     dispatchTask(taskInfo);
     //const { clientId, taskId } = taskQueue.shift(); // Remove from queue

@@ -121,6 +121,7 @@ class ClientRegistry {
       console.log(
         `➕ Added subtask ${subTask.taskId} to ${taskId} of client ${clientId}`
       );
+      console.log(mainTask.subTasks);
     } finally {
       this.unlock();
     }
@@ -189,15 +190,20 @@ class ClientRegistry {
   getClientSubTask(clientId, taskId, subTaskId) {
     if (this.isLocked) throw new Error("ClientRegistry is locked.");
 
+    console.log("CLIENT HELLO");
     const client = this.clients.get(clientId);
     if (!client) return null;
+    console.log(client);
 
+    console.log("TASK HELLO");
     const mainTask = client.tasks.get(taskId);
     if (!mainTask) return null;
+    console.log(mainTask);
 
+    console.log("TRYING TO FIND SUBTASK");
+    console.log(mainTask.subTasks);
     return (
-      mainTask.subTasks.find((subTask) => subTask.subTaskId === subTaskId) ||
-      null
+      mainTask.subTasks.find((subTask) => subTask.taskId === subTaskId) || null
     );
   }
 

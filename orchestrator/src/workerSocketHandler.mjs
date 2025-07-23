@@ -26,9 +26,9 @@ export function handleWorkerSocket(ws, workerId) {
         const match = taskId.match(regex);
         let taskObj = null;
 
-        if (match && match[0].length === taskId.length) {
-          // El sufijo ocupa todo el final => taskIdWithSuffix es una subtarea, no la principal
-          const mainTaskId = taskIdWithSuffix.replace(regex, "");
+        if (match) {
+          // El sufijo ocupa todo el final => taskId es una subtarea, no la principal
+          const mainTaskId = taskId.replace(regex, "");
           taskObj = clientRegistry.getClientSubTask(
             clientId,
             mainTaskId,
