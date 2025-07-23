@@ -1,5 +1,5 @@
 // client.js
-import { parseArgs, getOrchestratorUrls } from "./utils.mjs";
+import { obtainArgs } from "./utils.mjs";
 import { loadConfig, loadCode } from "./configLoader.mjs";
 import {
   sendTaskWithRetry,
@@ -7,36 +7,18 @@ import {
   //connectClient,
 } from "./orchestratorAPI.mjs";
 import { Stopwatch } from "./stopWatch.mjs";
+const CONFIG = {
+  HTTP_ORCH: null,
+  WS_ORCH: null,
+  CONFIG_PATH: null,
+};
 
 async function main() {
-  const { configPath, orchestrator, client_id } = parseArgs();
-
-  if (!configPath || !orchestrator) {
-    console.error("❌ Missing --config or --orch argument");
-    process.exit(1);
-  }
-
-  let urls;
-  try {
-    urls = getOrchestratorUrls(orchestrator);
-  } catch (err) {
-    console.error("❌", err.message);
-    process.exit(1);
-  }
-
-  if (client_id) {
-    console.log("FUNCTIONALITY NOT IMPLEMENTED YET");
-    return;
-    // console.log("🔌 Using provided client ID:", client_id);
-    // try {
-    //   const res = await connectClient(client_id, urls.http);
-    //   connectToWebSocket(urls.ws, client_id);
-    // } catch (err) {}
-  }
+  obtainArgs(CONFIG);
 
   let task, maxTasks;
   try {
-    const config = await loadConfig(configPath);
+    const config = await loadConfig(CONFIG.CONFIG_PATH);
     const code = await loadCode(config.code);
     maxTasks = config.args.length;
     task = {
@@ -49,7 +31,7 @@ async function main() {
     process.exit(1);
   }
 
-  const clientId = await sendTaskWithRetry(task, urls.http);
+  const clientId = await sendTaskWithRetry(task, CONFIG.HTTP_ORCH);
   let stopwatches = [];
   for (let i = 0; i < maxTasks; i++) {
     const stopwatch = new Stopwatch();
@@ -58,7 +40,7 @@ async function main() {
   }
   console.log("🕒 Stopwatch started for task:", clientId);
   const sentTime = Date.now() / 1000; // Convert to seconds
-  connectToWebSocket(urls.ws, clientId, maxTasks, stopwatches, sentTime);
+  connectToWebSocket(CONFIG.WS_ORCH, clientId, maxTasks, stopwatches, sentTime);
 }
 
 main();

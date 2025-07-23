@@ -9,7 +9,8 @@ import {
   obtainBucketAndObjectName,
   obtainBucketName,
 } from "./awsS3Client.mjs";
-import { STORAGE_ORCH } from "./configAWS.mjs";
+//import { STORAGE_ORCH } from "./configAWS.mjs";
+import { CONFIG } from "./main.mjs";
 
 export async function getTextFromS3(fileUrl, offset = -1, numMappers = -1) {
   createAwsS3Client();
@@ -76,7 +77,7 @@ export async function setSerializedResult(task, result) {
   createAwsS3Client();
 
   // Use STORAGE_ORCH as base URL, assuming like "https://bucket.s3.region.amazonaws.com"
-  const bucket = obtainBucketName(STORAGE_ORCH);
+  const bucket = obtainBucketName(CONFIG.STORAGE);
   const client = getAwsS3Client();
 
   let cleanedTaskId = task.taskId;
@@ -116,7 +117,7 @@ export async function setSerializedResult(task, result) {
         })
       );
 
-      urls.push(`${STORAGE_ORCH}/${objectName}`);
+      urls.push(`${CONFIG.STORAGE}/${objectName}`);
     }
     return urls;
   } else {
@@ -134,6 +135,6 @@ export async function setSerializedResult(task, result) {
       })
     );
 
-    return `${STORAGE_ORCH}/${objectName}`;
+    return `${CONFIG.STORAGE}/${objectName}`;
   }
 }

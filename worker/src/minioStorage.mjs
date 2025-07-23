@@ -4,7 +4,8 @@ import {
   obtainBucketAndObjectName,
 } from "./minioClient.mjs";
 
-import { STORAGE_ORCH } from "./configMinio.mjs";
+// import { CONFIG.STORAGE } from "./configMinio.mjs";
+import { CONFIG } from "./main.mjs";
 
 export async function getTextFromMinio(fileUrl, offset = -1, numMappers = -1) {
   createMinioClient(fileUrl);
@@ -70,7 +71,7 @@ export async function getSerializedResults(results) {
 
 export async function setSerializedResult(task, result) {
   // Construimos la basePath con clientId y taskId original (se usará en URL de retorno)
-  const basePath = `${STORAGE_ORCH}/${task.clientId}/${task.taskId}`;
+  const basePath = `${CONFIG.STORAGE}/${task.clientId}/${task.taskId}`;
 
   createMinioClient(basePath);
   const minioClient = getMinioClient();

@@ -4,20 +4,22 @@ import { executeTask } from "./taskExecutor.mjs";
 
 import { Stopwatch } from "./stopWatch.mjs";
 
+import { CONFIG } from "./main.mjs";
+
 let workerId;
 let ws;
 let stopWatch;
 
-//let retryAttempts = 0;
-//const MAX_RETRIES = 3;
+let retryAttempts = 0;
+const MAX_RETRIES = 20;
 
-export async function registerWorker(HTTP_ORCH, WS_ORCH) {
+export async function registerWorker() {
   try {
-    const { data } = await axios.post(`${HTTP_ORCH}/register_worker`, {
+    const { data } = await axios.post(`${CONFIG.HTTP_ORCH}/register_worker`, {
       numWorkers: 1,
     });
     workerId = data.worker_id;
-    ws = new WebSocket(`${WS_ORCH}?worker_id=${workerId}`);
+    ws = new WebSocket(`${CONFIG.WS_ORCH}?worker_id=${workerId}`);
     stopWatch = new Stopwatch();
   } catch (err) {
     if (err.response) {
@@ -30,11 +32,11 @@ export async function registerWorker(HTTP_ORCH, WS_ORCH) {
         "❌ No response received from the ORCHESTRATOR server. The server may be down."
       );
 
-      // retryAttempts++;
-      // if (retryAttempts > MAX_RETRIES) {
-      //   console.error("❌ Maximum retry attempts reached. Exiting.");
-      //   return;
-      // }
+      retryAttempts++;
+      if (retryAttempts > MAX_RETRIES) {
+        console.error("❌ Maximum retry attempts reached. Exiting.");
+        return;
+      }
 
       // Retry after 3 seconds
       let countdown = 3;

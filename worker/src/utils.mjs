@@ -1,16 +1,12 @@
-// utils.js
 function parseArgs() {
   const args = process.argv.slice(2);
   const result = {};
   for (let i = 0; i < args.length; i++) {
-    if (args[i] === "--config") {
-      result.configPath = args[i + 1];
+    if (args[i] === "--orch") {
+      result.orch = args[i + 1];
       i++;
-    } else if (args[i] === "--orch") {
-      result.orchestrator = args[i + 1];
-      i++;
-    } else if (args[i] === "--client_id") {
-      result.client_id = args[i + 1];
+    } else if (args[i] === "--storage") {
+      result.storage = args[i + 1];
       i++;
     }
   }
@@ -34,6 +30,21 @@ function isValidURL(url) {
   }
 }
 
+function isValidStorage(urlstorage) {
+  try {
+    const newurl = new URL(urlstorage);
+    if (
+      newurl.protocol !== "http:" &&
+      newurl.protocol !== "https:" &&
+      newurl.protocol !== "s3:"
+    )
+      throw new Error();
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
 function getOrchestratorUrls(input) {
   if (!isValidURL(input)) {
     console.error("Invalid orchestrator URL");
@@ -48,41 +59,44 @@ function getOrchestratorUrls(input) {
   }
 
   let ws = convertHttpToWs(url.toString());
+  console.log("WS:", ws);
   return {
     http: url.protocol + "//" + url.host,
     ws: ws.protocol + "//" + ws.host,
   };
 }
 
-export function obtainArgs(CONFIG) {
-  const { configPath, orchestrator, client_id } = parseArgs();
-
-  if (client_id) {
-    console.log("FUNCTIONALITY NOT IMPLEMENTED YET");
-    return;
-    // console.log("🔌 Using provided client ID:", client_id);
-    // try {
-    //   const res = await connectClient(client_id, urls.http);
-    //   connectToWebSocket(urls.ws, client_id);
-    // } catch (err) {}
+function processStorage(url) {
+  if (!isValidStorage(url)) {
+    console.error("❌ Invalid '--storage' URL.");
+    process.exit(1);
   }
+  const newurl = new URL(url);
+  return newurl.protocol + "//" + newurl.host;
+}
 
-  if (!configPath || !orchestrator) {
-    console.error("❌ Missing --config or --orch argument");
+export function obtainArgs(CONFIG) {
+  const { orch, storage } = parseArgs();
+
+  if (!orch || !storage) {
+    console.error("❌ Missing '--orch' or '--storage' URL.");
     process.exit(1);
   }
 
   let urls;
   try {
-    urls = getOrchestratorUrls(orchestrator);
+    urls = getOrchestratorUrls(orch);
   } catch (err) {
     console.error("❌", err.message);
     process.exit(1);
   }
 
-  CONFIG.HTTP_ORCH = urls.http;
+  const store = processStorage(storage);
+  CONFIG.STORAGE = store;
   CONFIG.WS_ORCH = urls.ws;
-  CONFIG.CONFIG_PATH = configPath;
-
-  console.log(urls);
+  CONFIG.HTTP_ORCH = urls.http;
+  // Debug output (optional)
+  console.log("✅ HTTP_ORCH_USED:", CONFIG.HTTP_ORCH);
+  console.log("✅ WS_ORCH_USED:", CONFIG.WS_ORCH);
+  console.log("✅ STORAGE_ORCH_USED:", CONFIG.STORAGE);
 }
